@@ -1,5 +1,15 @@
 import math
 
+def float_choose(cond, iftrue, iffalse):
+    return cond * iftrue + (1 - cond) * iffalse
+
+def min(a, b):
+    return float_choose(a <= b, a, b)
+
+def max(a, b):
+    return float_choose(a <= b, b, a)
+
+
 class Evaluable(object):
     _attrs_ = []
 
