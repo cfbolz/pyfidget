@@ -68,6 +68,11 @@ class Float(Evaluable):
     def __repr__(self):
         return str(self.value)
 
+def min4(a, b, c, d):
+    return min(min(a, b), min(c, d))
+
+def max4(a, b, c, d):
+    return max(max(a, b), max(c, d))
 
 class FloatRange(Evaluable):
     def __init__(self, minimum, maximum):
@@ -89,7 +94,7 @@ class FloatRange(Evaluable):
         return FloatRange(self.minimum - other.maximum, self.maximum - other.minimum)
     
     def mul(self, other):
-        return FloatRange(min(self.minimum * other.minimum, self.minimum * other.maximum, self.maximum * other.minimum, self.maximum * other.maximum), max(self.minimum * other.minimum, self.minimum * other.maximum, self.maximum * other.minimum, self.maximum * other.maximum))
+        return FloatRange(min4(self.minimum * other.minimum, self.minimum * other.maximum, self.maximum * other.minimum, self.maximum * other.maximum), max4(self.minimum * other.minimum, self.minimum * other.maximum, self.maximum * other.minimum, self.maximum * other.maximum))
     
     def max(self, other):
         return FloatRange(max(self.minimum, other.minimum), max(self.maximum, other.maximum))

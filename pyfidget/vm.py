@@ -56,14 +56,15 @@ class Frame(object):
         return self.values[index]
 
     @jit.unroll_safe
-    def run(self, x, y, z):
+    def run(self, x, y, z=None):
         self.x = x
         self.y = y
         self.z = z
         program = self.program
         jit.promote(program)
         for op in program.operations:
-            jit.jit_debug(op.tostr())
+            if jit.we_are_jitted():
+                jit.jit_debug(op.tostr())
             if isinstance(op, Const):
                 res = self.x.make_constant(op.value)
             elif isinstance(op, Operation):
@@ -73,6 +74,7 @@ class Frame(object):
                     res = self.y
                 elif op.func == 'var-z':
                     res = self.z
+                    assert res is not None
                 else:
                     args = [self.getvalue(arg.index) for arg in op.args]
                     if op.func == 'add':
@@ -145,6 +147,62 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
             if row_index >= height:
                 break
     return result
+
+def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy):
+    from pyfidget.data import Float
+    num_pixels = width * height
+    for column_index in range(startx, stopx):
+        for row_index in range(starty, stopy):
+            x = Float(minx + (maxx - minx) * column_index / width)
+            y = Float(miny + (maxy - miny) * row_index / height)
+            res = frame.run(x, y, x.make_constant(0))
+            index = row_index * width + column_index
+            result[index] = " " if res.value > 0 else "#"
+
+def render_image_octree(frame, width, height, minx, maxx, miny, maxy):
+    result = [' '] * (width * height)
+    render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
+    return result
+
+LIMIT = 8
+
+def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
+    # proof of concept
+    from pyfidget.data import FloatRange
+    # use intervals to check for uniform color
+
+    #print("==" * level, startx, stopx, starty, stopy)
+    x = FloatRange(minx + (maxx - minx) * startx / (width - 1),
+                   minx + (maxx - minx) * (stopx - 1) / (width - 1))
+    y = FloatRange(miny + (maxy - miny) * starty / (height - 1),
+                   miny + (maxy - miny) * (stopy - 1) / (height - 1))
+    res = frame.run(x, y, x.make_constant(0))
+    #print("  " * level, x, y, res)
+    assert isinstance(res, FloatRange)
+    if res.maximum < 0:
+        # completely inside
+        _fill_black(width, height, result, startx, stopx, starty, stopy)
+    elif res.minimum > 0:
+        # completely outside, no need to change color
+        return
+
+    # check whether area is small enough to switch to naive evaluation
+    if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
+        render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
+        return
+    midx = (startx + stopx) // 2
+    midy = (starty + stopy) // 2
+    for new_startx, new_stopx in [(startx, midx), (midx, stopx)]:
+        for new_starty, new_stopy in [(starty, midy), (midy, stopy)]:
+            render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
+
+
+def _fill_black(width, height, result, startx, stopx, starty, stopy):
+    for column_index in range(startx, stopx):
+        for row_index in range(starty, stopy):
+            index = row_index * width + column_index
+            result[index] = "#"
+
 
 def flat_list_to_ppm(data, width, height):
     assert len(data) == width * height
