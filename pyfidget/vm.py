@@ -154,7 +154,7 @@ def flat_list_to_ppm(data, width, height):
         else:
             row.append("1")
         if len(row) == width:
-            row.append('')
+            row.append('') # rpython workaround, super weird
             row.pop()
             output.append(" ".join(row))
             row = []
