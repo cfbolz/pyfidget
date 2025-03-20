@@ -57,6 +57,12 @@ def optimize(program, xbounds, ybounds, zbounds):
                     res = args0.exp()
                 elif op.func == 'neg':
                     res = args0.neg()
+                    arg0op = opreplacements[op.args[0].index]
+                    if arg0op.func == 'neg':
+                        opreplacements[index] = arg0op.args[0]
+                        values[index] = res
+                        continue
+
                 elif op.func == 'abs':
                     res = args0.abs()
                     if args0.minimum >= 0:

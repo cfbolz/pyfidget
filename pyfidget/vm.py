@@ -24,7 +24,7 @@ driver_render_part = jit.JitDriver(
 
 
 class Value(object):
-    _immutable_fields_ = ['index', 'name']
+    _immutable_fields_ = ['index', 'name', 'func']
     index = -1
     name = None
 
@@ -37,6 +37,7 @@ class Const(Value):
     def __init__(self, name, value):
         self.name = name
         self.value = value
+        self.func = 'const'
 
     def _tostr(self):
         return "%s = const %s" % (self.name, self.value)
