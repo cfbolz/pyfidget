@@ -1,14 +1,28 @@
 from __future__ import division, print_function
+from rpython.rlib import jit
+
+driver_run = jit.JitDriver(greens=['program'], reds=['frame'], virtualizables=['frame'])
 
 class Value(object):
+    _immutable_fields_ = ['index', 'name']
     index = -1
+    name = None
+
+    @jit.elidable
+    def tostr(self):
+        return self._tostr()
 
 class Const(Value):
+    _immutable_fields_ = ['value']
     def __init__(self, name, value):
         self.name = name
         self.value = value
 
+    def _tostr(self):
+        return "%s = const %s" % (self.name, self.value)
+
 class Operation(Value):
+    _immutable_fields_ = ['func', 'args[*]']
     def __init__(self, name, func, args):
         self.name = name
         self.func = func
@@ -17,33 +31,46 @@ class Operation(Value):
     def __repr__(self):
         return "Operation(%r, %r, %r)" % (self.name, self.func, self.args)
 
+    def _tostr(self):
+        return "%s = %s %s" % (self.name, self.func, " ".join([arg.name for arg in self.args]))
+
 class Program(object):
+    _immutable_fields_ = ['operations[*]']
     def __init__(self, operations):
         self.operations = operations
         for index, op in enumerate(operations):
             op.index = index
 
 class Frame(object):
+    _virtualizable_ = ['values[*]', 'x', 'y', 'z']
     def __init__(self, program):
         self.values = [None] * len(program.operations)
         self.program = program
+
+    def getvalue(self, index):
+        assert index >= 0
+        return self.values[index]
 
     def run(self, x, y, z):
         self.x = x
         self.y = y
         self.z = z
-        for op in self.program.operations:
+        driver_run.jit_merge_point(program=self.program, frame=self)
+        program = self.program
+        jit.promote(program)
+        for op in program.operations:
+            jit.jit_debug(op.tostr())
             if isinstance(op, Const):
-                self.values[op.index] = x.make_constant(op.value)
+                res = self.x.make_constant(op.value)
             elif isinstance(op, Operation):
                 if op.func == 'var-x':
-                    self.values[op.index] = x
+                    res = self.x
                 elif op.func == 'var-y':
-                    self.values[op.index] = y
+                    res = self.y
                 elif op.func == 'var-z':
-                    self.values[op.index] = z
+                    res = self.z
                 else:
-                    args = [self.values[arg.index] for arg in op.args]
+                    args = [self.getvalue(arg.index) for arg in op.args]
                     if op.func == 'add':
                         res = args[0].add(args[1])
                     elif op.func == 'sub':
@@ -66,7 +93,11 @@ class Frame(object):
                         res = args[0].abs()
                     else:
                         raise ValueError("Invalid operation: %s" % op)
-                    self.values[op.index] = res
+            else:
+                raise ValueError("Invalid operation: %s" % op)
+            index = op.index
+            assert index >= 0
+            self.values[index] = res
         return self.values[-1]
 
 

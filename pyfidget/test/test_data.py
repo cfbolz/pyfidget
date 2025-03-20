@@ -31,7 +31,6 @@ def test_sqrt(val):
     res_range = rng.sqrt()
     assert res_range.contains(res.value)
 
-
 @given(range_and_contained_float)
 def test_neg(val):
     rng, contained = val
