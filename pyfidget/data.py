@@ -56,6 +56,9 @@ class Float(Evaluable):
     def exp(self):
         return Float(math.exp(self.value))
 
+    def abs(self):
+        return Float(abs(self.value))
+
     def make_constant(self, value):
         return Float(value)
     
@@ -69,6 +72,13 @@ class FloatRange(Evaluable):
         self.minimum = minimum
         self.maximum = maximum
     
+    @staticmethod
+    def nan():
+        return FloatRange(float('nan'), float('nan'))
+
+    def has_nan(self):
+        return math.isnan(self.minimum) or math.isnan(self.maximum)
+
     def add(self, other):
         return FloatRange(self.minimum + other.minimum, self.maximum + other.maximum)
     
@@ -93,10 +103,21 @@ class FloatRange(Evaluable):
             return FloatRange(0, max(self.minimum * self.minimum, self.maximum * self.maximum))
     
     def sqrt(self):
-        assert 0, 'trickier'
+        if self.maximum < 0:
+            return FloatRange.nan()
+        else:
+            return FloatRange(math.sqrt(self.minimum), math.sqrt(self.maximum))
 
     def exp(self):
         return FloatRange(math.exp(self.minimum), math.exp(self.maximum))
+
+    def abs(self):
+        if self.maximum < 0:
+            return FloatRange(-self.maximum, -self.minimum)
+        elif self.minimum >= 0:
+            return self
+        else:
+            return FloatRange(0, max(-self.minimum, self.maximum))
 
     def make_constant(self, value):
         return FloatRange(value, value)
