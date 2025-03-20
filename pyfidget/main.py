@@ -1,6 +1,8 @@
 import time
-from pyfidget.vm import render_image_naive, nested_list_to_ppm, Frame, Program
+from pyfidget.vm import render_image_naive, write_ppm, Frame, Program
 from pyfidget.parse import parse
+
+from rpython.rlib.nonconst import NonConstant
 
 def main(argv):
     if len(argv) < 3:
@@ -15,10 +17,10 @@ def main(argv):
         length = int(argv[3])
     else:
         length = 1000
-    data = render_image_naive(frame, length, length, -2, 2, -2, 2)
+    data = render_image_naive(frame, length, length, NonConstant(-2.), NonConstant(2.), NonConstant(-2.), NonConstant(2.))
     t2 = time.time()
     print("Time: %s" % (t2 - t1))
-    nested_list_to_ppm(data, argv[2])
+    write_ppm(data, argv[2], length, length)
     return 0
 
 if __name__ == "__main__":

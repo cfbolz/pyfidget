@@ -1,7 +1,11 @@
 from __future__ import division, print_function
 from rpython.rlib import jit
 
-driver_run = jit.JitDriver(greens=['program'], reds=['frame'], virtualizables=['frame'])
+driver_render = jit.JitDriver(greens=['program'],
+                              reds=['index', 'row_index', 'column_index', 'width', 'height',
+                                    'frame', 'result',
+                                    'maxx', 'minx', 'maxy', 'miny'],
+                              virtualizables=['frame'])
 
 class Value(object):
     _immutable_fields_ = ['index', 'name']
@@ -51,11 +55,11 @@ class Frame(object):
         assert index >= 0
         return self.values[index]
 
+    @jit.unroll_safe
     def run(self, x, y, z):
         self.x = x
         self.y = y
         self.z = z
-        driver_run.jit_merge_point(program=self.program, frame=self)
         program = self.program
         jit.promote(program)
         for op in program.operations:
@@ -114,28 +118,54 @@ def pretty_format(operations):
 def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
     from pyfidget.data import Float
     result = [[" " for _ in range(width)] for _ in range(height)]
-    for i in range(width):
-        for j in range(height):
-            x = Float(minx + (maxx - minx) * i / width)
-            y = Float(miny + (maxy - miny) * j / height)
-            res = frame.run(x, y, Float(0))
-            result[j][i] = " " if res.value > 0 else "#"
+    num_pixels = width * height
+    result = [" "] * num_pixels
+    index = 0
+    row_index = 0
+    column_index = 0
+    while 1:
+        driver_render.jit_merge_point(program=frame.program, index=index,
+                                      row_index=row_index, column_index=column_index,
+                                      width=width, height=height, frame=frame,
+                                      maxx=maxx, minx=minx, maxy=maxy, miny=miny,
+                                      result=result)
+        x = Float(minx + (maxx - minx) * column_index / width)
+        y = Float(miny + (maxy - miny) * row_index / height)
+        res = frame.run(x, y, Float(0))
+        result[index] = " " if res.value > 0 else "#"
+        index += 1
+        column_index += 1
+        if column_index >= width:
+            column_index = 0
+            row_index += 1
+            if row_index >= height:
+                break
     return result
 
-def nested_list_to_ppm(data, filename):
+def flat_list_to_ppm(data, width, height):
+    assert len(data) == width * height
     output = []
-    output.append("P3")
-    output.append("%d %d" % (len(data[0]), len(data)))
-    output.append("255")
-    for row in data:
-        for cell in row:
-            if cell == " ":
-                output.append("255 255 255")
-            else:
-                output.append("0 0 0")
+    row = []
+    output.append("P1")
+    output.append("%d %d" % (width, height))
+    for cell in data:
+        if cell == " ":
+            row.append("0")
+        else:
+            row.append("1")
+        if len(row) == width:
+            row.append('')
+            row.pop()
+            output.append(" ".join(row))
+            row = []
+    assert not row
+    return "\n".join(output)
+
+def write_ppm(data, filename, width, height):
+    output = flat_list_to_ppm(data, width, height)
     f = open(filename, "w")
     try:
-        f.write("\n".join(output))
+        f.write(output)
     finally:
         f.close()
 

@@ -10,7 +10,7 @@ from rpython.jit.metainterp.test.test_ajit import LLJitMixin
 
 import pytest
 
-from pyfidget.vm import render_image_naive, nested_list_to_ppm, Frame, Program
+from pyfidget.vm import render_image_naive, Frame, Program
 from pyfidget.parse import parse
 
 class TestLLtype(LLJitMixin):
@@ -20,5 +20,6 @@ class TestLLtype(LLJitMixin):
         operations = parse(code)
         program = Program(operations)
         def interp():
-            render_image_naive(Frame(NonConstant(program)), 50, 50, -2, 2, -2, 2)
+            render_image_naive(Frame(NonConstant(program)), NonConstant(50), NonConstant(50),
+                               NonConstant(-2.), NonConstant(2.), NonConstant(-2.), NonConstant(2.))
         self.meta_interp(interp, [], listcomp=True, listops=True, backendopt=True)

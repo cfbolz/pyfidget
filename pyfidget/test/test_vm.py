@@ -1,5 +1,5 @@
 from __future__ import division, print_function
-from pyfidget.vm import Frame, Program, Value, Const, Operation
+from pyfidget.vm import Frame, Program, render_image_naive, flat_list_to_ppm
 from pyfidget.data import Float, FloatRange
 from pyfidget.parse import parse
 
@@ -87,3 +87,31 @@ def test_interval_quarter():
     res = frame.run(FloatRange(-2, -1), FloatRange(2, 3), FloatRange(0, 0))
     assert res.minimum == 4.5
     assert res.maximum == 12.5
+
+def test_render_naively():
+    frame = quarter_frame()
+    data = render_image_naive(frame, 20, 20, -2, 2, -2, 2)
+    ppm = flat_list_to_ppm(data, 20, 20)
+    assert ppm == """\
+P1
+20 20
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 1 1 1 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 1 1 1 1 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 1 1 1 1 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"""
