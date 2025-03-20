@@ -1,3 +1,5 @@
+from __future__ import division, print_function
+
 class Value(object):
     index = -1
 
@@ -70,3 +72,32 @@ def pretty_format(operations):
             args = " ".join(arg.name for arg in op.args)
             result.append("%s = %s%s%s" % (op.name, op.func, " " if args else "", args))
     return "\n".join(result)
+
+def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
+    from pyfidget.data import Float
+    result = [[" " for _ in range(width)] for _ in range(height)]
+    for i in range(width):
+        for j in range(height):
+            x = Float(minx + (maxx - minx) * i / width)
+            y = Float(miny + (maxy - miny) * j / height)
+            res = frame.run(x, y, Float(0))
+            result[j][i] = " " if res.value > 0 else "#"
+    return result
+
+def nested_list_to_ppm(data, filename):
+    output = []
+    output.append("P3")
+    output.append("%d %d" % (len(data[0]), len(data)))
+    output.append("255")
+    for row in data:
+        for cell in row:
+            if cell == " ":
+                output.append("255 255 255")
+            else:
+                output.append("0 0 0")
+    f = open(filename, "w")
+    try:
+        f.write("\n".join(output))
+    finally:
+        f.close()
+
