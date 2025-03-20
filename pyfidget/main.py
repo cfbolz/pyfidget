@@ -2,9 +2,21 @@ import time
 from pyfidget.vm import render_image_naive, write_ppm, Frame, Program
 from pyfidget.parse import parse
 
+from rpython.rlib import jit
 from rpython.rlib.nonconst import NonConstant
 
 def main(argv):
+    # crappy jit argument handling
+    for i in range(len(argv)):
+        if argv[i] == "--jit":
+            if len(argv) == i + 1:
+                print("missing argument after --jit")
+                return 2
+            jitarg = argv[i + 1]
+            del argv[i:i+2]
+            jit.set_user_param(None, jitarg)
+            break
+
     if len(argv) < 3:
         print("Usage: %s <input.vm> <output.ppm> [length]" % argv[0])
         return 1
