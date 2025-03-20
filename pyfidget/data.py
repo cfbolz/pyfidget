@@ -65,6 +65,7 @@ class Float(Evaluable):
 
 class FloatRange(Evaluable):
     def __init__(self, minimum, maximum):
+        assert minimum <= maximum
         self.minimum = minimum
         self.maximum = maximum
     
@@ -84,7 +85,12 @@ class FloatRange(Evaluable):
         return FloatRange(min(self.minimum, other.minimum), min(self.maximum, other.maximum))
     
     def square(self):
-        return FloatRange(self.minimum * self.minimum, self.maximum * self.maximum)
+        if self.minimum >= 0:
+            return FloatRange(self.minimum * self.minimum, self.maximum * self.maximum)
+        elif self.maximum <= 0:
+            return FloatRange(self.maximum * self.maximum, self.minimum * self.minimum)
+        else:
+            return FloatRange(0, max(self.minimum * self.minimum, self.maximum * self.maximum))
     
     def sqrt(self):
         assert 0, 'trickier'
@@ -97,3 +103,6 @@ class FloatRange(Evaluable):
 
     def __repr__(self):
         return "[%s, %s]" % (self.minimum, self.maximum)
+
+    def contains(self, value):
+        return self.minimum <= value <= self.maximum
