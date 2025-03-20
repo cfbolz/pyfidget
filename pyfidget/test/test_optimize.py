@@ -29,3 +29,16 @@ out add x zero
     assert pretty_format(newops) == """\
 zero const 0.0
 x var-x"""
+
+def test_optimize_min():
+    ops = parse("""
+x var-x
+y var-y
+a min x y
+out square a
+""")
+    newops = optimize(Program(ops), FloatRange(0.0, 100.0), FloatRange(1000, 2000), FloatRange(-1000, 1000))
+    assert pretty_format(newops) == """\
+x var-x
+y var-y
+out square x"""

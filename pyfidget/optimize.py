@@ -5,6 +5,8 @@ def optimize(program, xbounds, ybounds, zbounds):
     values = [None] * len(program.operations)
     opreplacements = [None] * len(program.operations)
     for op in program.operations:
+        index = op.index
+        assert index >= 0
         if isinstance(op, Const):
             res = xbounds.make_constant(op.value)
         elif isinstance(op, Operation):
@@ -43,6 +45,10 @@ def optimize(program, xbounds, ybounds, zbounds):
                     res = args0.max(args1)
                 elif op.func == 'min':
                     res = args0.min(args1)
+                    if args0.maximum < args1.minimum:
+                        opreplacements[index] = op.args[0]
+                        values[index] = res
+                        continue
                 elif op.func == 'square':
                     res = args0.square()
                 elif op.func == 'sqrt':
@@ -55,20 +61,18 @@ def optimize(program, xbounds, ybounds, zbounds):
                     res = args0.abs()
                     if args0.minimum >= 0:
                         values[index] = res
-                        opreplacements[op.index] = op.args[0]
+                        opreplacements[index] = op.args[0]
                         continue
                     elif args0.maximum <= 0:
                         newop = Operation(op.name, "neg", [op.args[0]])
                         values[index] = res
-                        opreplacements[op.index] = newop
+                        opreplacements[index] = newop
                         resultops.append(newop)
                         continue
                 else:
                     raise ValueError("Invalid operation: %s" % op)
         else:
             raise ValueError("Invalid operation: %s" % op)
-        index = op.index
-        assert index >= 0
         values[index] = res
         if isinstance(op, Const):
             newop = op
