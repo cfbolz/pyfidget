@@ -93,9 +93,10 @@ def max4(a, b, c, d):
 
 class FloatRange(Evaluable):
     def __init__(self, minimum, maximum):
-        assert minimum <= maximum
         self.minimum = minimum
         self.maximum = maximum
+        if not self.has_nan():
+            assert minimum <= maximum
     
     @staticmethod
     def nan():
@@ -159,4 +160,6 @@ class FloatRange(Evaluable):
         return "[%s, %s]" % (self.minimum, self.maximum)
 
     def contains(self, value):
+        if self.has_nan():
+            return True # top, contains anything
         return self.minimum <= value <= self.maximum
