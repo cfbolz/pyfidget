@@ -1,3 +1,4 @@
+import time
 from pyfidget.vm import render_image_naive, nested_list_to_ppm, Frame, Program
 from pyfidget.parse import parse
 
@@ -9,7 +10,10 @@ def main(argv):
         code = f.read()
     operations = parse(code)
     frame = Frame(Program(operations))
+    t1 = time.time()
     data = render_image_naive(frame, 1000, 1000, -2, 2, -2, 2)
+    t2 = time.time()
+    print("Time: %s" % (t2 - t1))
     nested_list_to_ppm(data, argv[2])
     return 0
 
