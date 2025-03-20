@@ -1,11 +1,26 @@
 from __future__ import division, print_function
 from rpython.rlib import jit
 
+def should_unroll_one_iteration(program):
+    return True
+
 driver_render = jit.JitDriver(greens=['program'],
                               reds=['index', 'row_index', 'column_index', 'width', 'height',
                                     'frame', 'result',
                                     'maxx', 'minx', 'maxy', 'miny'],
                               is_recursive=True)
+
+driver_octree = jit.JitDriver(
+        greens=['program'],
+        reds='auto',
+        should_unroll_one_iteration=should_unroll_one_iteration,
+        is_recursive=True)
+
+driver_render_part = jit.JitDriver(
+        greens=['program'],
+        reds='auto',
+        should_unroll_one_iteration=should_unroll_one_iteration,
+        is_recursive=True)
 
 
 class Value(object):
@@ -63,6 +78,7 @@ class Frame(object):
         self.z = z
         program = self.program
         jit.promote(program)
+        self.values = [None] * len(program.operations)
         for op in program.operations:
             if jit.we_are_jitted():
                 jit.jit_debug(op.tostr())
@@ -114,6 +130,8 @@ class Frame(object):
             assert index >= 0
             self.values[index] = res
         res = self.values[len(program.operations) - 1]
+        self.values = None
+        self.x = self.y = self.z = None
         return res
 
 
@@ -145,11 +163,11 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
                                       width=width, height=height, frame=frame,
                                       maxx=maxx, minx=minx, maxy=maxy, miny=miny,
                                       result=result)
-        x = Float(minx + (maxx - minx) * column_index / width)
-        y = Float(miny + (maxy - miny) * row_index / height)
+        x = Float(minx + (maxx - minx) * column_index / (width - 1))
+        y = Float(miny + (maxy - miny) * row_index / (height - 1))
         res = frame.run(x, y, Float(0))
         assert isinstance(res, Float)
-        result[index] = " " if res.value > 0 else "#"
+        result[index] = " " if res.value > 0 else "#" # TODO: use int_choose
         index += 1
         column_index += 1
         if column_index >= width:
@@ -164,8 +182,10 @@ def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, re
     num_pixels = width * height
     for column_index in range(startx, stopx):
         for row_index in range(starty, stopy):
-            x = Float(minx + (maxx - minx) * column_index / width)
-            y = Float(miny + (maxy - miny) * row_index / height)
+            driver_render_part.jit_merge_point(program=frame.program)
+            jit.promote(frame.program)
+            x = Float(minx + (maxx - minx) * column_index / (width - 1))
+            y = Float(miny + (maxy - miny) * row_index / (height - 1))
             res = frame.run(x, y, x.make_constant(0))
             assert isinstance(res, Float)
             index = row_index * width + column_index
@@ -181,6 +201,8 @@ LIMIT = 8
 def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept
     from pyfidget.data import FloatRange
+    driver_octree.jit_merge_point(program=frame.program)
+    jit.promote(frame.program)
     # use intervals to check for uniform color
 
     #print("==" * level, startx, stopx, starty, stopy)
