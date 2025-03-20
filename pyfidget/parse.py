@@ -10,7 +10,7 @@ def parse(code):
         # ignore comments
         if line.startswith("#"):
             continue
-        parts = line.split()
+        parts = line.split(' ')
         if len(parts) == 2:
             name, func = parts
             args = []

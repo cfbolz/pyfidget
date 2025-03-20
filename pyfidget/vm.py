@@ -14,6 +14,9 @@ class Operation(Value):
         self.func = func
         self.args = args
 
+    def __repr__(self):
+        return "Operation(%r, %r, %r)" % (self.name, self.func, self.args)
+
 class Program(object):
     def __init__(self, operations):
         self.operations = operations
@@ -57,6 +60,10 @@ class Frame(object):
                         res = args[0].sqrt()
                     elif op.func == 'exp':
                         res = args[0].exp()
+                    elif op.func == 'neg':
+                        res = args[0].neg()
+                    elif op.func == 'abs':
+                        res = args[0].abs()
                     else:
                         raise ValueError("Invalid operation: %s" % op)
                     self.values[op.index] = res

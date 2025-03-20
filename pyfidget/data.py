@@ -59,6 +59,9 @@ class Float(Evaluable):
     def abs(self):
         return Float(abs(self.value))
 
+    def neg(self):
+        return Float(-self.value)
+
     def make_constant(self, value):
         return Float(value)
     
@@ -118,6 +121,9 @@ class FloatRange(Evaluable):
             return self
         else:
             return FloatRange(0, max(-self.minimum, self.maximum))
+
+    def neg(self):
+        return FloatRange(-self.maximum, -self.minimum)
 
     def make_constant(self, value):
         return FloatRange(value, value)
