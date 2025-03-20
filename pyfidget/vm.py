@@ -5,7 +5,13 @@ driver_render = jit.JitDriver(greens=['program'],
                               reds=['index', 'row_index', 'column_index', 'width', 'height',
                                     'frame', 'result',
                                     'maxx', 'minx', 'maxy', 'miny'],
-                              virtualizables=['frame'])
+                              virtualizables=['frame'],
+                              is_recursive=True)
+
+driver_run = jit.JitDriver(greens=['program'],
+                           reds=['frame'],
+                           virtualizables=['frame'],
+                           is_recursive=True)
 
 class Value(object):
     _immutable_fields_ = ['index', 'name']
@@ -61,6 +67,7 @@ class Frame(object):
         self.y = y
         self.z = z
         program = self.program
+        driver_run.jit_merge_point(program=program, frame=self)
         jit.promote(program)
         for op in program.operations:
             if jit.we_are_jitted():
