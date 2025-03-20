@@ -138,6 +138,7 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
         x = Float(minx + (maxx - minx) * column_index / width)
         y = Float(miny + (maxy - miny) * row_index / height)
         res = frame.run(x, y, Float(0))
+        assert isinstance(res, Float)
         result[index] = " " if res.value > 0 else "#"
         index += 1
         column_index += 1
@@ -156,6 +157,7 @@ def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, re
             x = Float(minx + (maxx - minx) * column_index / width)
             y = Float(miny + (maxy - miny) * row_index / height)
             res = frame.run(x, y, x.make_constant(0))
+            assert isinstance(res, Float)
             index = row_index * width + column_index
             result[index] = " " if res.value > 0 else "#"
 

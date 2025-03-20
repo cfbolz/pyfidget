@@ -1,6 +1,8 @@
 import math
 
 class Evaluable(object):
+    _attrs_ = []
+
     def add(self, other):
         raise NotImplementedError()
     
@@ -33,18 +35,23 @@ class Float(Evaluable):
         self.value = value
 
     def add(self, other):
+        assert isinstance(other, Float)
         return Float(self.value + other.value)
     
     def sub(self, other):
+        assert isinstance(other, Float)
         return Float(self.value - other.value)
     
     def mul(self, other):
+        assert isinstance(other, Float)
         return Float(self.value * other.value)
     
     def max(self, other):
+        assert isinstance(other, Float)
         return Float(max(self.value, other.value))
     
     def min(self, other):
+        assert isinstance(other, Float)
         return Float(min(self.value, other.value))
     
     def square(self):
@@ -88,18 +95,23 @@ class FloatRange(Evaluable):
         return math.isnan(self.minimum) or math.isnan(self.maximum)
 
     def add(self, other):
+        assert isinstance(other, FloatRange)
         return FloatRange(self.minimum + other.minimum, self.maximum + other.maximum)
     
     def sub(self, other):
+        assert isinstance(other, FloatRange)
         return FloatRange(self.minimum - other.maximum, self.maximum - other.minimum)
     
     def mul(self, other):
+        assert isinstance(other, FloatRange)
         return FloatRange(min4(self.minimum * other.minimum, self.minimum * other.maximum, self.maximum * other.minimum, self.maximum * other.maximum), max4(self.minimum * other.minimum, self.minimum * other.maximum, self.maximum * other.minimum, self.maximum * other.maximum))
     
     def max(self, other):
+        assert isinstance(other, FloatRange)
         return FloatRange(max(self.minimum, other.minimum), max(self.maximum, other.maximum))
     
     def min(self, other):
+        assert isinstance(other, FloatRange)
         return FloatRange(min(self.minimum, other.minimum), min(self.maximum, other.maximum))
     
     def square(self):
