@@ -88,6 +88,10 @@ def test_interval_quarter():
     assert res.minimum == 4.5
     assert res.maximum == 12.5
 
+    res = frame.run(FloatRange(-2, 0), FloatRange(0, 2), FloatRange(0, 0))
+    assert res.minimum == 0 # ambiguous
+    assert res.maximum == 7.5
+
 def test_render_naively():
     frame = quarter_frame()
     data = render_image_naive(frame, 20, 20, -2, 2, -2, 2)

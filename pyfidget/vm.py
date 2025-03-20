@@ -117,6 +117,10 @@ def pretty_format(operations):
 
 def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
     from pyfidget.data import Float
+    minx = float(minx)
+    maxx = float(maxx)
+    miny = float(miny)
+    maxy = float(maxy)
     result = [[" " for _ in range(width)] for _ in range(height)]
     num_pixels = width * height
     result = [" "] * num_pixels
