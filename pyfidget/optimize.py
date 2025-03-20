@@ -30,23 +30,34 @@ def optimize(program, xbounds, ybounds, zbounds):
                 if op.func == 'add':
                     res = args0.add(args1)
                     if args0.minimum == args0.maximum == 0.0:
-                        opreplacements[index] = op.args[1]
+                        opreplacements[index] = opreplacements[op.args[1].index]
                         values[index] = res
                         continue
                     elif args1.minimum == args1.maximum == 0.0:
-                        opreplacements[index] = op.args[0]
+                        opreplacements[index] = opreplacements[op.args[0].index]
                         values[index] = res
                         continue
                 elif op.func == 'sub':
                     res = args0.sub(args1)
                 elif op.func == 'mul':
                     res = args0.mul(args1)
+                    arg0op = opreplacements[op.args[0].index]
+                    if arg0op is opreplacements[op.args[1].index]:
+                        newop = Operation(op.name, "square", [arg0op])
+                        values[index] = res
+                        opreplacements[index] = newop
+                        resultops.append(newop)
+                        continue
                 elif op.func == 'max':
                     res = args0.max(args1)
                 elif op.func == 'min':
                     res = args0.min(args1)
                     if args0.maximum < args1.minimum:
-                        opreplacements[index] = op.args[0]
+                        opreplacements[index] = opreplacements[op.args[0].index]
+                        values[index] = res
+                        continue
+                    if args0.minimum > args1.maximum:
+                        opreplacements[index] = opreplacements[op.args[1].index]
                         values[index] = res
                         continue
                 elif op.func == 'square':
