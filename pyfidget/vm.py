@@ -83,27 +83,35 @@ class Frame(object):
                     res = self.z
                     assert res is not None
                 else:
-                    args = [self.getvalue(arg.index) for arg in op.args]
+                    args0 = None
+                    args1 = None
+                    if len(op.args) == 1:
+                        args0 = self.getvalue(op.args[0].index)
+                    elif len(op.args) == 2:
+                        args0 = self.getvalue(op.args[0].index)
+                        args1 = self.getvalue(op.args[1].index)
+                    else:
+                        raise ValueError("number of arguments not supported")
                     if op.func == 'add':
-                        res = args[0].add(args[1])
+                        res = args0.add(args1)
                     elif op.func == 'sub':
-                        res = args[0].sub(args[1])
+                        res = args0.sub(args1)
                     elif op.func == 'mul':
-                        res = args[0].mul(args[1])
+                        res = args0.mul(args1)
                     elif op.func == 'max':
-                        res = args[0].max(args[1])
+                        res = args0.max(args1)
                     elif op.func == 'min':
-                        res = args[0].min(args[1])
+                        res = args0.min(args1)
                     elif op.func == 'square':
-                        res = args[0].square()
+                        res = args0.square()
                     elif op.func == 'sqrt':
-                        res = args[0].sqrt()
+                        res = args0.sqrt()
                     elif op.func == 'exp':
-                        res = args[0].exp()
+                        res = args0.exp()
                     elif op.func == 'neg':
-                        res = args[0].neg()
+                        res = args0.neg()
                     elif op.func == 'abs':
-                        res = args[0].abs()
+                        res = args0.abs()
                     else:
                         raise ValueError("Invalid operation: %s" % op)
             else:
