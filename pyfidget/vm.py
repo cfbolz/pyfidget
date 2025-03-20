@@ -139,10 +139,10 @@ def pretty_format(operations):
     result = []
     for op in operations:
         if isinstance(op, Const):
-            result.append("%s = %s" % (op.name, op.value))
+            result.append("%s const %s" % (op.name, op.value))
         elif isinstance(op, Operation):
             args = " ".join(arg.name for arg in op.args)
-            result.append("%s = %s%s%s" % (op.name, op.func, " " if args else "", args))
+            result.append("%s %s%s%s" % (op.name, op.func, " " if args else "", args))
     return "\n".join(result)
 
 def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
