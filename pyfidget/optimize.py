@@ -63,7 +63,6 @@ class Optimizer(object):
                 minimum = self.intervalframe.minvalues[op.index]
                 maximum = self.intervalframe.maxvalues[op.index]
                 if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
-                    import pdb;pdb.set_trace()
                     newop = self.newconst(op.name, minimum)
             if newop is LEAVE_AS_IS:
                 newop = Operation(op.name, op.func, [self.get_replacement(arg) for arg in op.args])
