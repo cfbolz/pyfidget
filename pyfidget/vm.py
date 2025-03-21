@@ -259,6 +259,40 @@ def flat_list_to_ppm(data, width, height):
     assert not row
     return "\n".join(rows)
 
+def flat_list_to_ppm_binary(data, width, height):
+    assert len(data) == width * height
+    row = []
+    rows = []
+    nextbyte = 0
+    bits = 0
+    rowbits = 0
+    for cell in data:
+        if cell != " ":
+            nextbyte |= 1
+        bits += 1
+        rowbits += 1
+        if bits == 8:
+            assert 0 <= nextbyte < 256
+            row.append(str(nextbyte))
+            nextbyte = 0
+            bits = 0
+        nextbyte <<= 1
+        if rowbits == width:
+            if bits:
+                nextbyte <<= (8 - bits)
+                rows.append(str(nextbyte))
+                nextbyte = 0
+                bits = 0
+            rows.append(" ".join(row))
+            row = []
+            rowbits = 0
+    rows.append("%d %d" % (width, height))
+    rows.append("P4")
+    rows.reverse()
+    assert not row
+    return "\n".join(rows)
+
+
 def write_ppm(data, filename, width, height):
     output = flat_list_to_ppm(data, width, height)
     f = open(filename, "w")

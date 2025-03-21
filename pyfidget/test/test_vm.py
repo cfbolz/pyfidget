@@ -1,6 +1,6 @@
 from __future__ import division, print_function
 from pyfidget.vm import Frame, Program, render_image_naive, flat_list_to_ppm, render_image_naive_fragment, \
-        render_image_octree
+        render_image_octree, flat_list_to_ppm_binary
 from pyfidget.data import Float, FloatRange
 from pyfidget.parse import parse
 
@@ -189,3 +189,44 @@ P1
 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"""
+
+
+def test_ppm_binary():
+    frame = quarter_frame()
+    data = render_image_octree(frame, 32, 32, -1., 1., -1., 1.)
+    ppm = flat_list_to_ppm_binary(data, 32, 32)
+    assert ppm == """\
+P4
+32 32
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+7 255 0 0
+7 255 0 0
+7 255 0 0
+3 255 0 0
+3 255 0 0
+1 255 0 0
+1 255 0 0
+0 255 0 0
+0 127 0 0
+0 31 0 0
+0 7 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0
+0 0 0 0"""
