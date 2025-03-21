@@ -1,12 +1,21 @@
+from __future__ import division, print_function
 from pyfidget.optimize import optimize
 from pyfidget.parse import parse
 from pyfidget.vm import pretty_format, Program
 from pyfidget.data import FloatRange
 
 def check_optimize(ops, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-1000, maxz=1000, expected=None):
-    newops = optimize(Program(ops), FloatRange(minx, maxx), FloatRange(miny, maxy), FloatRange(minz, maxz))
+    program = Program(ops)
+    newops = optimize(program, minx, maxx, miny, maxy, minz, maxz)
     check_well_formed(newops)
-    assert pretty_format(newops) == expected.strip()
+    formatted = pretty_format(newops)
+    if not formatted.strip() == expected.strip():
+        print("EXPECTED:")
+        print(expected.strip())
+        print()
+        print("GOT:")
+        print(formatted.strip())
+        assert 0
 
 def check_well_formed(ops):
     seen = set()
@@ -20,14 +29,12 @@ def test_optimize_abs():
 x var-x
 out abs x
 """)
-    newops = optimize(Program(ops), FloatRange(0.0, 100.0), FloatRange(-1000, 1000), FloatRange(-1000, 1000))
-    assert pretty_format(newops) == """\
-x var-x"""
+    check_optimize(ops, 0.0, 100.0, -1000, 1000, -1000, 1000, """\
+x var-x""")
     
-    newops = optimize(Program(ops), FloatRange(-100., -1.), FloatRange(-1000, 1000), FloatRange(-1000, 1000))
-    assert pretty_format(newops) == """\
+    check_optimize(ops, -100., -1., -1000, 1000, -1000, 1000, """
 x var-x
-out neg x"""
+out neg x""")
 
 
 def test_optimize_add():
@@ -36,10 +43,9 @@ zero const 0.0
 x var-x
 out add x zero
 """)
-    newops = optimize(Program(ops), FloatRange(0.0, 100.0), FloatRange(-1000, 1000), FloatRange(-1000, 1000))
-    assert pretty_format(newops) == """\
+    check_optimize(ops, 0.0, 100.0, -1000, 1000, -1000, 1000, """\
 zero const 0.0
-x var-x"""
+x var-x""")
 
 def test_optimize_min():
     ops = parse("""

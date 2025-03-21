@@ -39,6 +39,7 @@ class Const(Value):
         self.name = name
         self.value = value
         self.func = 'const'
+        self.args = []
 
     def _tostr(self):
         return "%s = const %s" % (self.name, self.value)
@@ -72,51 +73,51 @@ class Frame(object):
         for op in program.operations:
             if jit.we_are_jitted():
                 jit.jit_debug(op.tostr())
-            if isinstance(op, Const):
-                res = self.make_constant(op.value, op.index)
-            elif isinstance(op, Operation):
-                if op.func == 'var-x':
-                    self.get_x(op.index)
-                elif op.func == 'var-y':
-                    self.get_y(op.index)
-                elif op.func == 'var-z':
-                    self.get_z(op.index)
-                else:
-                    arg0index = op.args[0].index
-                    arg1index = arg0index
-                    if len(op.args) == 2:
-                        arg1index = op.args[1].index
-                    elif len(op.args) == 1:
-                        pass
-                    else:
-                        raise ValueError("number of arguments not supported")
-                    if op.func == 'add':
-                        self.add(arg0index, arg1index, op.index)
-                    elif op.func == 'sub':
-                        self.sub(arg0index, arg1index, op.index)
-                    elif op.func == 'mul':
-                        self.mul(arg0index, arg1index, op.index)
-                    elif op.func == 'max':
-                        self.max(arg0index, arg1index, op.index)
-                    elif op.func == 'min':
-                        self.min(arg0index, arg1index, op.index)
-                    elif op.func == 'square':
-                        self.square(arg0index, op.index)
-                    elif op.func == 'sqrt':
-                        self.sqrt(arg0index, op.index)
-                    elif op.func == 'exp':
-                        self.exp(arg0index, op.index)
-                    elif op.func == 'neg':
-                        self.neg(arg0index, op.index)
-                    elif op.func == 'abs':
-                        self.abs(arg0index, op.index)
-                    else:
-                        raise ValueError("Invalid operation: %s" % op)
+            self._run_op(op)
+    
+    def _run_op(self, op):
+        if isinstance(op, Const):
+            res = self.make_constant(op.value, op.index)
+        elif isinstance(op, Operation):
+            if op.func == 'var-x':
+                self.get_x(op.index)
+            elif op.func == 'var-y':
+                self.get_y(op.index)
+            elif op.func == 'var-z':
+                self.get_z(op.index)
             else:
-                raise ValueError("Invalid operation: %s" % op)
-            index = op.index
-            assert index >= 0
-
+                arg0index = op.args[0].index
+                arg1index = arg0index
+                if len(op.args) == 2:
+                    arg1index = op.args[1].index
+                elif len(op.args) == 1:
+                    pass
+                else:
+                    raise ValueError("number of arguments not supported")
+                if op.func == 'add':
+                    self.add(arg0index, arg1index, op.index)
+                elif op.func == 'sub':
+                    self.sub(arg0index, arg1index, op.index)
+                elif op.func == 'mul':
+                    self.mul(arg0index, arg1index, op.index)
+                elif op.func == 'max':
+                    self.max(arg0index, arg1index, op.index)
+                elif op.func == 'min':
+                    self.min(arg0index, arg1index, op.index)
+                elif op.func == 'square':
+                    self.square(arg0index, op.index)
+                elif op.func == 'sqrt':
+                    self.sqrt(arg0index, op.index)
+                elif op.func == 'exp':
+                    self.exp(arg0index, op.index)
+                elif op.func == 'neg':
+                    self.neg(arg0index, op.index)
+                elif op.func == 'abs':
+                    self.abs(arg0index, op.index)
+                else:
+                    raise ValueError("Invalid operation: %s" % op)
+        else:
+            raise ValueError("Invalid operation: %s" % op)
 
 class DirectFrame(object):
     objectmodel.import_from_mixin(Frame)
