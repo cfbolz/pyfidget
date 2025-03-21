@@ -1,4 +1,5 @@
 from __future__ import division, print_function
+import math
 from rpython.rlib import jit
 
 def should_unroll_one_iteration(program):
