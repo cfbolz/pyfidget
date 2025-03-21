@@ -60,6 +60,20 @@ x var-x
 y var-y
 out square x""")
 
+def test_optimize_max():
+    ops = parse("""
+x var-x
+y var-y
+a max x y
+b max y x
+out mul a b
+""")
+    check_optimize(ops, 0.0, 100.0, 1000, 2000, -1000, 1000, """\
+x var-x
+y var-y
+out square y""")
+
+
 def test_optimize_neg_neg():
     ops = parse("""
 x var-x

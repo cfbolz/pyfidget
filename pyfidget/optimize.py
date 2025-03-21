@@ -146,6 +146,8 @@ class Optimizer(object):
 
     @symmetric
     def opt_max(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        if arg0minimum > arg1maximum:
+            return arg0
         return LEAVE_AS_IS
 
     @symmetric
