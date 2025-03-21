@@ -13,7 +13,7 @@ def optimize(program, a, b, c, d, e, f):
     resultops = opt.resultops
     while resultops[-1] is not result:
         resultops.pop()
-    return resultops
+    return dce(resultops)
 
 def symmetric(func):
     def f(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
@@ -90,9 +90,9 @@ class Optimizer(object):
 
     def cse1(self, op):
         arg0 = self.getarg(op, 0)
-        for index in range(len(self.resultops) - 1, max(-1, len(self.resultops - WINDOW_SIZE)), -1):
+        for index in range(len(self.resultops) - 1, max(-1, len(self.resultops) - WINDOW_SIZE), -1):
             oldop = self.resultops[index]
-            if isinstance(oldop, Operation) and len(oldop.args) == 1:
+            if isinstance(oldop, Operation) and oldop.func == op.func and len(oldop.args) == 1:
                 if oldop.args[0] is arg0:
                     return oldop
         return LEAVE_AS_IS
@@ -214,3 +214,23 @@ class Optimizer(object):
         if res is not LEAVE_AS_IS:
             return res
         return self.newop(name, func, [arg0])
+
+def dce(ops):
+    ops[-1].index = len(ops) - 1
+    alive_ops = 0
+    for index in range(len(ops) - 1, -1, -1):
+        op = ops[index]
+        if op.index == -1: # not used:
+            continue
+        alive_ops += 1
+        for arg in op.args:
+            if arg.index == -1:
+                arg.index = index # last use
+    res = [None] * alive_ops
+    index = 0
+    for op in ops:
+        if op.index == -1:
+            continue
+        res[index] = op
+        index += 1
+    return res

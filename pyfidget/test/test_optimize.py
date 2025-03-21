@@ -51,7 +51,6 @@ x var-x
 out add x zero
 """)
     check_optimize(ops, 0.0, 100.0, -1000, 1000, -1000, 1000, """\
-zero const 0.0
 x var-x""")
 
 def test_optimize_sub():
@@ -61,7 +60,6 @@ x var-x
 out sub x zero
 """)
     check_optimize(ops, expected="""\
-zero const 0.0
 x var-x""")
 
     ops = parse("""
@@ -70,7 +68,6 @@ x var-x
 out sub zero x
 """)
     check_optimize(ops, expected="""\
-zero const 0.0
 x var-x
 out neg x""")
 
@@ -85,7 +82,6 @@ out mul a b
 """)
     check_optimize(ops, 0.0, 100.0, 1000, 2000, -1000, 1000, """\
 x var-x
-y var-y
 out square x""")
 
 def test_optimize_max():
@@ -97,7 +93,6 @@ b max y x
 out mul a b
 """)
     check_optimize(ops, 0.0, 100.0, 1000, 2000, -1000, 1000, """\
-x var-x
 y var-y
 out square y""")
 
@@ -113,8 +108,6 @@ out square d
 """)
     check_optimize(ops, expected="""\
 x var-x
-a neg x
-c neg x
 out square x
 """)
 
@@ -154,8 +147,6 @@ out mul mfour x
 """)
     check_optimize(ops, expected="""\
 x var-x
-mtwo const -2.0
-two const 2.0
 mfour const -4.0
 out mul mfour x
 """)
@@ -169,7 +160,7 @@ def test_cse():
     out sub a b
     """
     expected = """
-    const 0.0
+    out const 0.0
     """
     check_optimize(ops, expected)
 
