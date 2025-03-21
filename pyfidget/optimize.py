@@ -93,34 +93,6 @@ class Optimizer(object):
             if op.func == 'mul':
                 return self.opt_mul(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
             return LEAVE_AS_IS
-            if op.func == 'sub':
-                res = args0.sub(args1)
-            elif op.func == 'mul':
-                res = args0.mul(args1)
-                arg0op = opreplacements[op.args[0].index]
-                if arg0op is opreplacements[op.args[1].index]:
-                    newop = Operation(op.name, "square", [arg0op])
-                    values[index] = res
-                    opreplacements[index] = newop
-                    resultops.append(newop)
-                    return
-            elif op.func == 'max':
-                res = args0.max(args1)
-            elif op.func == 'square':
-                res = args0.square()
-            elif op.func == 'sqrt':
-                res = args0.sqrt()
-            elif op.func == 'exp':
-                res = args0.exp()
-            elif op.func == 'neg':
-                res = args0.neg()
-                arg0op = opreplacements[op.args[0].index]
-                if arg0op.func == 'neg':
-                    opreplacements[index] = arg0op.args[0]
-                    values[index] = res
-                    return
-            else:
-                raise ValueError("Invalid operation: %s" % op)
         else:
             raise ValueError("Invalid operation: %s" % op)
         values[index] = res
