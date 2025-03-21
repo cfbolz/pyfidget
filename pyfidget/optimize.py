@@ -94,6 +94,8 @@ class Optimizer(object):
             arg1maximum = self.intervalframe.maxvalues[op.args[1].index]
             if op.func == 'add':
                 return self.opt_add(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
+            if op.func == 'sub':
+                return self.opt_sub(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
             if op.func == 'min':
                 return self.opt_min(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
             if op.func == 'max':
@@ -136,6 +138,13 @@ class Optimizer(object):
     def opt_add(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0minimum == arg0maximum == 0:
             return arg1
+        return LEAVE_AS_IS
+
+    def opt_sub(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        if arg0minimum == arg0maximum == 0:
+            return self.defer1("neg", name, arg1, arg1minimum, arg1maximum)
+        if arg1minimum == arg1maximum == 0:
+            return arg0
         return LEAVE_AS_IS
 
     @symmetric

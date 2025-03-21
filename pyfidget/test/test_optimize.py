@@ -47,6 +47,26 @@ out add x zero
 zero const 0.0
 x var-x""")
 
+def test_optimize_sub():
+    ops = parse("""
+zero const 0.0
+x var-x
+out sub x zero
+""")
+    check_optimize(ops, expected="""\
+zero const 0.0
+x var-x""")
+    ops = parse("""
+zero const 0.0
+x var-x
+out sub zero x
+""")
+    check_optimize(ops, expected="""\
+zero const 0.0
+x var-x
+out neg x""")
+
+
 def test_optimize_min():
     ops = parse("""
 x var-x
