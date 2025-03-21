@@ -75,3 +75,18 @@ a neg x
 c neg x
 out square x
 """)
+
+def test_optimize_mul():
+    ops = parse("""
+x var-x
+one const 1.0
+x_1 mul x one
+x_2 mul one x_1
+_0 const 0.0
+_1 mul x _0
+_2 mul _1 x
+out add _2 x_2
+""")
+    check_optimize(ops, expected="""\
+x var-x
+""")

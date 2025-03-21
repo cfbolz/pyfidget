@@ -5,7 +5,11 @@ LEAVE_AS_IS = Const('dummy', -42.0)
 def optimize(program, a, b, c, d, e, f):
     opt = Optimizer(program)
     opt.optimize(a, b, c, d, e, f)
-    return opt.resultops
+    result = opt.opreplacements[len(program.operations) - 1]
+    resultops = opt.resultops
+    while resultops[-1] is not result:
+        resultops.pop()
+    return resultops
 
 class Optimizer(object):
     def __init__(self, program):
@@ -13,6 +17,7 @@ class Optimizer(object):
         self.resultops = []
         self.values = [None] * len(program.operations)
         self.opreplacements = [None] * len(program.operations)
+        self.seen_consts = {}
 
     def get_replacement(self, op):
         while 1:
@@ -26,6 +31,14 @@ class Optimizer(object):
         newop = Operation(name, func, args)
         self.resultops.append(newop)
         return newop
+
+    def newconst(self, name, value):
+        if value in self.seen_consts:
+            return self.seen_consts[value]
+        const = Const(name, value)
+        self.resultops.append(const)
+        self.seen_consts[value] = const
+        return const
 
     def optimize(self, a, b, c, d, e, f):
         self.intervalframe = IntervalFrame(self.program)
@@ -50,9 +63,7 @@ class Optimizer(object):
 
     def _optimize_op(self, op):
         if isinstance(op, Const):
-            c = Const(op.name, op.value)
-            self.resultops.append(c)
-            return c
+            return self.newconst(op.name, op.value)
         elif isinstance(op, Operation):
             if op.func == 'var-x':
                 return LEAVE_AS_IS
@@ -158,4 +169,12 @@ class Optimizer(object):
     def opt_mul(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0 is arg1:
             return self.newop(name, "square", [arg0])
+        if arg0minimum == arg0maximum == 0.0:
+            return self.newconst(name, 0.0)
+        if arg1minimum == arg1maximum == 0.0:
+            return self.newconst(name, 0.0)
+        if arg0minimum == arg0maximum == 1.0:
+            return arg1
+        if arg1minimum == arg1maximum == 1.0:
+            return arg0
         return LEAVE_AS_IS
