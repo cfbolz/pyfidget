@@ -151,7 +151,7 @@ P1
 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"""
 
 def test_render_octree():
-    frame = quarter_frame()
+    frame = quarter_frame(IntervalFrame)
     data = render_image_octree(frame, 32, 32, -1., 1., -1., 1.)
     ppm = flat_list_to_ppm(data, 32, 32)
     assert ppm == """\
@@ -192,7 +192,7 @@ P1
 
 
 def test_ppm_binary():
-    frame = quarter_frame()
+    frame = quarter_frame(IntervalFrame)
     data = render_image_octree(frame, 32, 32, -1., 1., -1., 1.)
     ppm = flat_list_to_ppm_binary(data, 32, 32)
     assert ppm == """\

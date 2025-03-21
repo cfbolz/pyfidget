@@ -95,3 +95,18 @@ def test_mul(val):
     intervalframe.mul(0, 1, 2)
     frame.mul(0, 1, 2)
     assert contains(intervalframe, frame, 2)
+
+@given(range_and_contained_float2)
+def test_max(val):
+    intervalframe, frame = val
+    intervalframe.max(0, 1, 2)
+    frame.max(0, 1, 2)
+    assert contains(intervalframe, frame, 2)
+
+@given(range_and_contained_float2)
+def test_min(val):
+    intervalframe, frame = val
+    intervalframe.min(0, 1, 2)
+    frame.min(0, 1, 2)
+    assert contains(intervalframe, frame, 2)
+

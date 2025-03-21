@@ -345,23 +345,22 @@ def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result
     # use intervals to check for uniform color
 
     #print("==" * level, startx, stopx, starty, stopy)
-    x = FloatRange(minx + (maxx - minx) * startx / (width - 1),
-                   minx + (maxx - minx) * (stopx - 1) / (width - 1))
-    y = FloatRange(miny + (maxy - miny) * starty / (height - 1),
-                   miny + (maxy - miny) * (stopy - 1) / (height - 1))
-    res = frame.run(x, y, x.make_constant(0))
+    a = minx + (maxx - minx) * startx / (width - 1)
+    b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
+    c = miny + (maxy - miny) * starty / (height - 1)
+    d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
+    minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)
     #print("  " * level, x, y, res)
-    assert isinstance(res, FloatRange)
-    if res.maximum < 0:
+    if maximum < 0:
         # completely inside
         _fill_black(width, height, result, startx, stopx, starty, stopy)
-    elif res.minimum > 0:
+    elif minimum > 0:
         # completely outside, no need to change color
         return
 
     # check whether area is small enough to switch to naive evaluation
     if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
-        render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
+        render_image_naive_fragment(DirectFrame(frame.program), width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
         return
     midx = (startx + stopx) // 2
     midy = (starty + stopy) // 2
