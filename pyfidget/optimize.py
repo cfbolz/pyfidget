@@ -78,12 +78,8 @@ class Optimizer(object):
             arg0 = self.getarg(op, 0)
             arg0minimum = self.intervalframe.minvalues[op.args[0].index]
             arg0maximum = self.intervalframe.maxvalues[op.args[0].index]
-            if op.func == "abs":
-                return self.opt_abs(op.name, arg0, arg0minimum, arg0maximum, minimum, maximum)
-            if op.func == "neg":
-                return self.opt_neg(op.name, arg0, arg0minimum, arg0maximum, minimum, maximum)
             if len(op.args) == 1:
-                return LEAVE_AS_IS
+                return self.opt_op1(op.func, op.name, arg0, arg0minimum, arg0maximum)
             assert len(op.args) == 2
             arg1 = self.getarg(op, 1)
             arg1minimum = self.intervalframe.minvalues[op.args[1].index]
@@ -137,14 +133,21 @@ class Optimizer(object):
         resultops.append(newop)
         return resultops
 
-    def opt_abs(self, name, arg0, arg0minimum, arg0maximum, minimum, maximum):
+    def opt_op1(self, func, name, arg0, arg0minimum, arg0maximum):
+        if func == "abs":
+            return self.opt_abs(name, arg0, arg0minimum, arg0maximum)
+        if func == "neg":
+            return self.opt_neg(name, arg0, arg0minimum, arg0maximum)
+        return LEAVE_AS_IS
+
+    def opt_abs(self, name, arg0, arg0minimum, arg0maximum):
         if arg0minimum >= 0:
             return arg0
         if arg0maximum < 0:
-            return self.newop(name, "neg", [arg0])
+            return self.defer1("neg", name, arg0, arg0minimum, arg0maximum)
         return LEAVE_AS_IS
 
-    def opt_neg(self, name, arg0, arg0minimum, arg0maximum, minimum, maximum):
+    def opt_neg(self, name, arg0, arg0minimum, arg0maximum):
         if arg0.func == 'neg':
             return self.getarg(arg0, 0)
         return LEAVE_AS_IS
@@ -168,7 +171,7 @@ class Optimizer(object):
 
     def opt_mul(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0 is arg1:
-            return self.newop(name, "square", [arg0])
+            return self.defer1("square", name, arg0, arg0minimum, arg1maximum)
         if arg0minimum == arg0maximum == 0.0:
             return self.newconst(name, 0.0)
         if arg1minimum == arg1maximum == 0.0:
@@ -177,4 +180,14 @@ class Optimizer(object):
             return arg1
         if arg1minimum == arg1maximum == 1.0:
             return arg0
+        if arg0minimum == arg0maximum == -1.0:
+            return self.defer1("neg", name, arg1, arg1minimum, arg1maximum)
+        if arg1minimum == arg1maximum == -1.0:
+            return self.defer1("neg", name, arg0, arg0minimum, arg0maximum)
         return LEAVE_AS_IS
+
+    def defer1(self, func, name, arg0, arg0minimum, arg0maximum):
+        res = self.opt_op1(func, name, arg0, arg0minimum, arg0maximum)
+        if res is not LEAVE_AS_IS:
+            return res
+        return self.newop(name, func, [arg0])

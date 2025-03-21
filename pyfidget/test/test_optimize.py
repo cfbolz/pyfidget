@@ -90,3 +90,16 @@ out add _2 x_2
     check_optimize(ops, expected="""\
 x var-x
 """)
+
+def test_optimize_mul_to_neg():
+    ops = parse("""
+x var-x
+mone const -1.0
+x_1 mul x mone
+out mul mone x_1
+""")
+    check_optimize(ops, expected="""\
+x var-x
+""")
+
+
