@@ -1,4 +1,7 @@
 import math
+
+from rpython.rlib import jit
+
 from pyfidget.vm import Const, Operation, Program, IntervalFrame
 
 LEAVE_AS_IS = Const('dummy', -42.0)
@@ -19,6 +22,8 @@ def symmetric(func):
             return func(self, name, arg1, arg0, arg1minimum, arg1maximum, arg0minimum, arg0maximum)
         return res
     return f
+
+WINDOW_SIZE = 100
 
 class Optimizer(object):
     def __init__(self, program):
@@ -62,8 +67,16 @@ class Optimizer(object):
             if newop is LEAVE_AS_IS:
                 minimum = self.intervalframe.minvalues[op.index]
                 maximum = self.intervalframe.maxvalues[op.index]
+                # const-folding
                 if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
                     newop = self.newconst(op.name, minimum)
+                else:
+                    # do CSE
+                    lenargs = len(op.args)
+                    if lenargs == 1:
+                        newop = self.cse1(op)
+                    elif lenargs == 2:
+                        newop = self.cse2(op)
             if newop is LEAVE_AS_IS:
                 newop = Operation(op.name, op.func, [self.get_replacement(arg) for arg in op.args])
                 self.resultops.append(newop)
@@ -74,6 +87,25 @@ class Optimizer(object):
 
     def getarg(self, op, i):
         return self.get_replacement(op.args[i])
+
+    def cse1(self, op):
+        arg0 = self.getarg(op, 0)
+        for index in range(len(self.resultops) - 1, max(-1, len(self.resultops - WINDOW_SIZE)), -1):
+            oldop = self.resultops[index]
+            if isinstance(oldop, Operation) and len(oldop.args) == 1:
+                if oldop.args[0] is arg0:
+                    return oldop
+        return LEAVE_AS_IS
+
+    def cse2(self, op):
+        arg0 = self.getarg(op, 0)
+        arg1 = self.getarg(op, 1)
+        for index in range(len(self.resultops) - 1, max(-1, len(self.resultops) - WINDOW_SIZE), -1):
+            oldop = self.resultops[index]
+            if isinstance(oldop, Operation) and len(oldop.args) == 2:
+                if oldop.args[0] is arg0 and oldop.args[1] is arg1:
+                    return oldop
+        return LEAVE_AS_IS
 
     def _optimize_op(self, op):
         if isinstance(op, Const):
@@ -145,6 +177,8 @@ class Optimizer(object):
         return LEAVE_AS_IS
 
     def opt_sub(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        if arg0 is arg1:
+            return self.newconst(name, 0.0)
         if arg0minimum == arg0maximum == 0:
             return self.defer1("neg", name, arg1, arg1minimum, arg1maximum)
         if arg1minimum == arg1maximum == 0:

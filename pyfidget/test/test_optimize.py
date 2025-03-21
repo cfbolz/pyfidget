@@ -5,6 +5,13 @@ from pyfidget.vm import pretty_format, Program
 from pyfidget.data import FloatRange
 
 def check_optimize(ops, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-1000, maxz=1000, expected=None):
+    if isinstance(ops, str):
+        ops = parse(ops)
+    if isinstance(minx, str):
+        assert expected is None
+        expected = minx
+        minx = -1000
+
     program = Program(ops)
     newops = optimize(program, minx, maxx, miny, maxy, minz, maxz)
     check_well_formed(newops)
@@ -152,3 +159,19 @@ two const 2.0
 mfour const -4.0
 out mul mfour x
 """)
+
+def test_cse():
+    ops = """
+    x var-x
+    y var-y
+    a min x y
+    b min x y
+    out sub a b
+    """
+    expected = """
+    const 0.0
+    """
+    check_optimize(ops, expected)
+
+
+
