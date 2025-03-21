@@ -17,6 +17,12 @@ driver_octree = jit.JitDriver(
         should_unroll_one_iteration=should_unroll_one_iteration,
         is_recursive=True)
 
+driver_octree_optimize = jit.JitDriver(
+        greens=['program'],
+        reds='auto',
+        should_unroll_one_iteration=should_unroll_one_iteration,
+        is_recursive=True)
+
 driver_render_part = jit.JitDriver(
         greens=['program'],
         reds='auto',
@@ -25,7 +31,7 @@ driver_render_part = jit.JitDriver(
 
 
 class Value(object):
-    _immutable_fields_ = ['index', 'name', 'func']
+    _immutable_fields_ = ['index', 'name', 'func', 'args[*]']
     index = -1
     name = None
 
@@ -45,7 +51,6 @@ class Const(Value):
         return "%s = const %s" % (self.name, self.value)
 
 class Operation(Value):
-    _immutable_fields_ = ['func', 'args[*]']
     def __init__(self, name, func, args):
         self.name = name
         self.func = func
@@ -128,10 +133,15 @@ class DirectFrame(object):
     def run_floats(self, x, y, z):
         self.setxyz(x, y, z)
         self.run()
-        return self.floatvalues[len(self.program.operations) - 1]
+        res = self.floatvalues[len(self.program.operations) - 1]
+        self.done()
+        return res
 
     def setup(self, length):
         self.floatvalues = [0.0] * length
+
+    def done(self):
+        self.floatvalues = None
 
     def setxyz(self, x, y, z):
         self.x = x
@@ -207,11 +217,16 @@ class IntervalFrame(object):
         self.setxyz(minx, maxx, miny, maxy, minz, maxz)
         self.run()
         index = len(self.program.operations) - 1
-        return self.minvalues[index], self.maxvalues[index]
+        res = self.minvalues[index], self.maxvalues[index]
+        self.done()
+        return res
 
     def setup(self, length):
         self.minvalues = [0.0] * length
         self.maxvalues = [0.0] * length
+
+    def done(self):
+        self.minvalues = self.maxvalues = None
 
     def setxyz(self, minx, maxx, miny, maxy, minz, maxz):
         self.minx = minx
@@ -360,7 +375,6 @@ LIMIT = 8
 
 def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept
-    from pyfidget.data import FloatRange
     driver_octree.jit_merge_point(program=frame.program)
     jit.promote(frame.program)
     # use intervals to check for uniform color
@@ -388,6 +402,50 @@ def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result
     for new_startx, new_stopx in [(startx, midx), (midx, stopx)]:
         for new_starty, new_stopy in [(starty, midy), (midy, stopy)]:
             render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
+
+def render_image_octree_optimize(frame, width, height, minx, maxx, miny, maxy):
+    result = [' '] * (width * height)
+    render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
+    return result
+
+LIMIT = 8
+
+def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
+    # proof of concept
+    from pyfidget.optimize import opt_program
+    if len(frame.program.operations) < 500:
+        driver_octree_optimize.jit_merge_point(program=frame.program)
+    jit.promote(frame.program)
+    # use intervals to check for uniform color
+
+    #print("==" * level, startx, stopx, starty, stopy)
+    a = minx + (maxx - minx) * startx / (width - 1)
+    b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
+    c = miny + (maxy - miny) * starty / (height - 1)
+    d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
+    minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)
+    #print("  " * level, x, y, res)
+    if maximum < 0:
+        # completely inside
+        _fill_black(width, height, result, startx, stopx, starty, stopy)
+    elif minimum > 0:
+        # completely outside, no need to change color
+        return
+    frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
+
+    # check whether area is small enough to switch to naive evaluation
+    if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
+        frame = DirectFrame(frame.program)
+        render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
+        return
+    midx = (startx + stopx) // 2
+    midy = (starty + stopy) // 2
+    for new_startx, new_stopx in [(startx, midx), (midx, stopx)]:
+        for new_starty, new_stopy in [(starty, midy), (midy, stopy)]:
+            if not objectmodel.we_are_translated():
+                print("====================================", level, new_startx, new_stopx, new_starty, new_stopy)
+            render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
+
 
 
 def _fill_black(width, height, result, startx, stopx, starty, stopy):

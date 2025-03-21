@@ -1,8 +1,8 @@
 import math
 
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 
-from pyfidget.vm import Const, Operation, Program, IntervalFrame
+from pyfidget.vm import Const, Operation, Program, IntervalFrame, pretty_format
 
 LEAVE_AS_IS = Const('dummy', -42.0)
 
@@ -13,7 +13,15 @@ def optimize(program, a, b, c, d, e, f):
     resultops = opt.resultops
     while resultops[-1] is not result:
         resultops.pop()
-    return dce(resultops)
+    res = dce(resultops)
+    if not objectmodel.we_are_translated():
+        print("length before", len(program.operations), "len after", len(res))
+        print(pretty_format(res))
+    return res
+
+@jit.dont_look_inside
+def opt_program(*args):
+    return Program(optimize(*args))
 
 def symmetric(func):
     def f(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):

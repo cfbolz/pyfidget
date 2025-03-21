@@ -1,6 +1,7 @@
 from __future__ import division, print_function
 from pyfidget.vm import Frame, Program, render_image_naive, flat_list_to_ppm, render_image_naive_fragment, \
-        render_image_octree, flat_list_to_ppm_binary, DirectFrame, IntervalFrame
+        render_image_octree, flat_list_to_ppm_binary, DirectFrame, IntervalFrame, \
+        render_image_octree_optimize
 from pyfidget.parse import parse
 
 def quarter_frame(cls=DirectFrame):
@@ -230,3 +231,9 @@ P4
 0 0 0 0
 0 0 0 0
 0 0 0 0"""
+
+def test_render_octree_optimize():
+    frame = quarter_frame(IntervalFrame)
+    data1 = render_image_octree(frame, 1024, 1024, -1., 1., -1., 1.)
+    data2 = render_image_octree_optimize(frame, 1024, 1024, -1., 1., -1., 1.)
+    assert data1 == data2
