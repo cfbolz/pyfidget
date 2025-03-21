@@ -241,10 +241,8 @@ def _fill_black(width, height, result, startx, stopx, starty, stopy):
 
 def flat_list_to_ppm(data, width, height):
     assert len(data) == width * height
-    output = []
     row = []
-    output.append("P1")
-    output.append("%d %d" % (width, height))
+    rows = []
     for cell in data:
         if cell == " ":
             row.append("0")
@@ -253,10 +251,13 @@ def flat_list_to_ppm(data, width, height):
         if len(row) == width:
             row.append('') # rpython workaround, super weird
             row.pop()
-            output.append(" ".join(row))
+            rows.append(" ".join(row))
             row = []
+    rows.append("%d %d" % (width, height))
+    rows.append("P1")
+    rows.reverse()
     assert not row
-    return "\n".join(output)
+    return "\n".join(rows)
 
 def write_ppm(data, filename, width, height):
     output = flat_list_to_ppm(data, width, height)
