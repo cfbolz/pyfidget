@@ -11,6 +11,14 @@ def optimize(program, a, b, c, d, e, f):
         resultops.pop()
     return resultops
 
+def symmetric(func):
+    def f(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        res = func(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
+        if res is LEAVE_AS_IS:
+            return func(self, name, arg1, arg0, arg1minimum, arg1maximum, arg0minimum, arg0maximum)
+        return res
+    return f
+
 class Optimizer(object):
     def __init__(self, program):
         self.program = program
@@ -124,38 +132,32 @@ class Optimizer(object):
             return self.getarg(arg0, 0)
         return LEAVE_AS_IS
 
+    @symmetric
     def opt_add(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0minimum == arg0maximum == 0:
             return arg1
-        if arg1minimum == arg1maximum == 0:
-            return arg0
         return LEAVE_AS_IS
 
+    @symmetric
     def opt_min(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0maximum < arg1minimum:
             return arg0
-        if arg0minimum > arg1maximum:
-            return arg1
         return LEAVE_AS_IS
 
+    @symmetric
     def opt_max(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return LEAVE_AS_IS
 
+    @symmetric
     def opt_mul(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0 is arg1:
             return self.defer1("square", name, arg0, arg0minimum, arg1maximum)
         if arg0minimum == arg0maximum == 0.0:
             return self.newconst(name, 0.0)
-        if arg1minimum == arg1maximum == 0.0:
-            return self.newconst(name, 0.0)
         if arg0minimum == arg0maximum == 1.0:
             return arg1
-        if arg1minimum == arg1maximum == 1.0:
-            return arg0
         if arg0minimum == arg0maximum == -1.0:
             return self.defer1("neg", name, arg1, arg1minimum, arg1maximum)
-        if arg1minimum == arg1maximum == -1.0:
-            return self.defer1("neg", name, arg0, arg0minimum, arg0maximum)
         return LEAVE_AS_IS
 
     def defer1(self, func, name, arg0, arg0minimum, arg0maximum):
