@@ -65,75 +65,215 @@ class Program(object):
 class Frame(object):
     #_virtualizable_ = ['values[*]', 'x', 'y', 'z']
     def __init__(self, program):
-        self.values = [None] * len(program.operations)
         self.program = program
 
-    def getvalue(self, index):
-        assert index >= 0
-        return self.values[index]
-
     @jit.unroll_safe
-    def run(self, x, y, z=None):
-        self.x = x
-        self.y = y
-        self.z = z
+    def run(self):
         program = self.program
         jit.promote(program)
-        self.values = [None] * len(program.operations)
+        self.setup(len(program.operations))
         for op in program.operations:
             if jit.we_are_jitted():
                 jit.jit_debug(op.tostr())
             if isinstance(op, Const):
-                res = self.x.make_constant(op.value)
+                res = self.make_constant(op.value, op.index)
             elif isinstance(op, Operation):
                 if op.func == 'var-x':
-                    res = self.x
+                    self.get_x(op.index)
                 elif op.func == 'var-y':
-                    res = self.y
+                    self.get_y(op.index)
                 elif op.func == 'var-z':
-                    res = self.z
-                    assert res is not None
+                    self.get_z(op.index)
                 else:
-                    args0 = None
-                    args1 = None
-                    if len(op.args) == 1:
-                        args0 = self.getvalue(op.args[0].index)
-                    elif len(op.args) == 2:
-                        args0 = self.getvalue(op.args[0].index)
-                        args1 = self.getvalue(op.args[1].index)
+                    arg0index = op.args[0].index
+                    arg1index = arg0index
+                    if len(op.args) == 2:
+                        arg1index = op.args[1].index
+                    elif len(op.args) == 1:
+                        pass
                     else:
                         raise ValueError("number of arguments not supported")
                     if op.func == 'add':
-                        res = args0.add(args1)
+                        self.add(arg0index, arg1index, op.index)
                     elif op.func == 'sub':
-                        res = args0.sub(args1)
+                        self.sub(arg0index, arg1index, op.index)
                     elif op.func == 'mul':
-                        res = args0.mul(args1)
+                        self.mul(arg0index, arg1index, op.index)
                     elif op.func == 'max':
-                        res = args0.max(args1)
+                        self.max(arg0index, arg1index, op.index)
                     elif op.func == 'min':
-                        res = args0.min(args1)
+                        self.min(arg0index, arg1index, op.index)
                     elif op.func == 'square':
-                        res = args0.square()
+                        self.square(arg0index, op.index)
                     elif op.func == 'sqrt':
-                        res = args0.sqrt()
+                        self.sqrt(arg0index, op.index)
                     elif op.func == 'exp':
-                        res = args0.exp()
+                        self.exp(arg0index, op.index)
                     elif op.func == 'neg':
-                        res = args0.neg()
+                        self.neg(arg0index, op.index)
                     elif op.func == 'abs':
-                        res = args0.abs()
+                        self.abs(arg0index, op.index)
                     else:
                         raise ValueError("Invalid operation: %s" % op)
             else:
                 raise ValueError("Invalid operation: %s" % op)
             index = op.index
             assert index >= 0
-            self.values[index] = res
-        res = self.values[len(program.operations) - 1]
-        self.values = None
-        self.x = self.y = self.z = None
-        return res
+
+
+class DirectFrame(Frame):
+    def __init__(self, program):
+        self.program = program
+
+    def run_floats(self, x, y, z):
+        self.setxyz(x, y, z)
+        self.run()
+        return self.floatvalues[len(self.program.operations) - 1]
+
+    def setup(self, length):
+        self.floatvalues = [0.0] * length
+
+    def setxyz(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def get_x(self, resindex):
+        self.floatvalues[resindex] = self.x
+
+    def get_y(self, resindex):
+        self.floatvalues[resindex] = self.y
+
+    def get_z(self, resindex):
+        self.floatvalues[resindex] = self.z
+
+    def make_constant(self, const, resindex):
+        self.floatvalues[resindex] = const
+
+    def add(self, arg0index, arg1index, resindex):
+        self.floatvalues[resindex] = self.floatvalues[arg0index] + self.floatvalues[arg1index]
+
+    def sub(self, arg0index, arg1index, resindex):
+        self.floatvalues[resindex] = self.floatvalues[arg0index] - self.floatvalues[arg1index]
+
+    def mul(self, arg0index, arg1index, resindex):
+        self.floatvalues[resindex] = self.floatvalues[arg0index] * self.floatvalues[arg1index]
+
+    def max(self, arg0index, arg1index, resindex):
+        self.floatvalues[resindex] = max(self.floatvalues[arg0index], self.floatvalues[arg1index])
+
+    def min(self, arg0index, arg1index, resindex):
+        self.floatvalues[resindex] = min(self.floatvalues[arg0index], self.floatvalues[arg1index])
+
+    def square(self, arg0index, resindex):
+        self.floatvalues[resindex] = self.floatvalues[arg0index] ** 2
+
+    def sqrt(self, arg0index, resindex):
+        self.floatvalues[resindex] = self.floatvalues[arg0index] ** 0.5
+
+    def exp(self, arg0index, resindex):
+        self.floatvalues[resindex] = math.exp(self.floatvalues[arg0index])
+
+    def neg(self, arg0index, resindex):
+        self.floatvalues[resindex] = -self.floatvalues[arg0index]
+
+    def abs(self, arg0index, resindex):
+        self.floatvalues[resindex] = abs(self.floatvalues[arg0index])
+
+
+class IntervalFrame(Frame):
+    def __init__(self, program):
+        self.program = program
+
+    def run_intervals(self, minx, maxx, miny, maxy, minz, maxz):
+        self.setxyz(minx, maxx, miny, maxy, minz, maxz)
+        self.run()
+        index = len(self.program.operations) - 1
+        return self.minvalues[index], self.maxvalues[index]
+
+    def setup(self, length):
+        self.minvalues = [0.0] * length
+        self.maxvalues = [0.0] * length
+
+    def setxyz(self, minx, maxx, miny, maxy, minz, maxz):
+        self.minx = minx
+        self.maxx = maxx
+        self.miny = miny
+        self.maxy = maxy
+        self.minz = minz
+        self.maxz = maxz
+
+    def get_x(self, resindex):
+        self.minvalues[resindex] = self.minx
+        self.maxvalues[resindex] = self.maxx
+
+    def get_y(self, resindex):
+        self.minvalues[resindex] = self.miny
+        self.maxvalues[resindex] = self.maxy
+
+    def get_z(self, resindex):
+        self.minvalues[resindex] = self.minz
+        self.maxvalues[resindex] = self.maxz
+
+    def make_constant(self, const, resindex):
+        self.minvalues[resindex] = const
+        self.maxvalues[resindex] = const
+
+    def add(self, arg0index, arg1index, resindex):
+        self.minvalues[resindex] = self.minvalues[arg0index] + self.minvalues[arg1index]
+        self.maxvalues[resindex] = self.maxvalues[arg0index] + self.maxvalues[arg1index]
+
+    def sub(self, arg0index, arg1index, resindex):
+        self.minvalues[resindex] = self.minvalues[arg0index] - self.maxvalues[arg1index]
+        self.maxvalues[resindex] = self.maxvalues[arg0index] - self.minvalues[arg1index]
+
+    def mul(self, arg0index, arg1index, resindex):
+        min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
+        min1, max1 = self.minvalues[arg1index], self.maxvalues[arg1index]
+        self.minvalues[resindex] = min(min0 * min1, min0 * max1, max0 * min1, max0 * max1)
+        self.maxvalues[resindex] = max(min0 * min1, min0 * max1, max0 * min1, max0 * max1)
+
+    def max(self, arg0index, arg1index, resindex):
+        self.minvalues[resindex] = max(self.minvalues[arg0index], self.minvalues[arg1index])
+        self.maxvalues[resindex] = max(self.maxvalues[arg0index], self.maxvalues[arg1index])
+
+    def min(self, arg0index, arg1index, resindex):
+        self.minvalues[resindex] = min(self.minvalues[arg0index], self.minvalues[arg1index])
+        self.maxvalues[resindex] = min(self.maxvalues[arg0index], self.maxvalues[arg1index])
+
+    def square(self, arg0index, resindex):
+        min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
+        if min0 >= 0:
+            self.minvalues[resindex] = min0 * min0
+            self.maxvalues[resindex] = max0 * max0
+        elif max0 <= 0:
+            self.minvalues[resindex] = max0 * max0
+            self.maxvalues[resindex] = min0 * min0
+        else:
+            self.minvalues[resindex] = 0
+            self.maxvalues[resindex] = max(min0 * min0, max0 * max0)
+
+    def sqrt(self, arg0index, resindex):
+        min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
+        if max0 < 0:
+            min_res, max_res = float('nan'), float('nan')
+        else:
+            min_res, max_res = math.sqrt(max(0, min0)), math.sqrt(max0)
+        self.minvalues[resindex], self.maxvalues[resindex] = min_res, max_res
+
+    def abs(self, arg0index, resindex):
+        min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
+        if max0 < 0:
+            min_res, max_res = -max0, -min0
+        elif min0 >= 0:
+            min_res, max_res = min0, max0
+        else:
+            min_res, max_res = 0, max(-min0, max0)
+        self.minvalues[resindex], self.maxvalues[resindex] = min_res, max_res
+
+    def neg(self, arg0index, resindex):
+        self.minvalues[resindex] = -self.maxvalues[arg0index]
+        self.maxvalues[resindex] = -self.minvalues[arg0index]
 
 
 def pretty_format(operations):
@@ -147,7 +287,6 @@ def pretty_format(operations):
     return "\n".join(result)
 
 def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
-    from pyfidget.data import Float
     minx = float(minx)
     maxx = float(maxx)
     miny = float(miny)
@@ -164,11 +303,10 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
                                       width=width, height=height, frame=frame,
                                       maxx=maxx, minx=minx, maxy=maxy, miny=miny,
                                       result=result)
-        x = Float(minx + (maxx - minx) * column_index / (width - 1))
-        y = Float(miny + (maxy - miny) * row_index / (height - 1))
-        res = frame.run(x, y, Float(0))
-        assert isinstance(res, Float)
-        result[index] = " " if res.value > 0 else "#" # TODO: use int_choose
+        x = minx + (maxx - minx) * column_index / (width - 1)
+        y = miny + (maxy - miny) * row_index / (height - 1)
+        res = frame.run_floats(x, y, 0)
+        result[index] = " " if res > 0 else "#" # TODO: use int_choose
         index += 1
         column_index += 1
         if column_index >= width:
@@ -185,12 +323,11 @@ def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, re
         for row_index in range(starty, stopy):
             driver_render_part.jit_merge_point(program=frame.program)
             jit.promote(frame.program)
-            x = Float(minx + (maxx - minx) * column_index / (width - 1))
-            y = Float(miny + (maxy - miny) * row_index / (height - 1))
-            res = frame.run(x, y, x.make_constant(0))
-            assert isinstance(res, Float)
+            x = minx + (maxx - minx) * column_index / (width - 1)
+            y = miny + (maxy - miny) * row_index / (height - 1)
+            res = frame.run_floats(x, y, 0)
             index = row_index * width + column_index
-            result[index] = " " if res.value > 0 else "#"
+            result[index] = " " if res > 0 else "#"
 
 def render_image_octree(frame, width, height, minx, maxx, miny, maxy):
     result = [' '] * (width * height)
