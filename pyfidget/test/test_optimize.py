@@ -56,6 +56,7 @@ out sub x zero
     check_optimize(ops, expected="""\
 zero const 0.0
 x var-x""")
+
     ops = parse("""
 zero const 0.0
 x var-x
@@ -136,4 +137,18 @@ out mul mone x_1
 x var-x
 """)
 
-
+def test_constfold():
+    ops = parse("""
+x var-x
+mtwo const -2.0
+two const 2.0
+mfour mul mtwo two
+out mul mfour x
+""")
+    check_optimize(ops, expected="""\
+x var-x
+mtwo const -2.0
+two const 2.0
+mfour const -4.0
+out mul mfour x
+""")

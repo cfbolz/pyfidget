@@ -1,3 +1,4 @@
+import math
 from pyfidget.vm import Const, Operation, Program, IntervalFrame
 
 LEAVE_AS_IS = Const('dummy', -42.0)
@@ -59,6 +60,12 @@ class Optimizer(object):
             self.intervalframe._run_op(op)
             newop = self._optimize_op(op)
             if newop is LEAVE_AS_IS:
+                minimum = self.intervalframe.minvalues[op.index]
+                maximum = self.intervalframe.maxvalues[op.index]
+                if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
+                    import pdb;pdb.set_trace()
+                    newop = self.newconst(op.name, minimum)
+            if newop is LEAVE_AS_IS:
                 newop = Operation(op.name, op.func, [self.get_replacement(arg) for arg in op.args])
                 self.resultops.append(newop)
             if newop is not None:
@@ -81,8 +88,6 @@ class Optimizer(object):
                 return LEAVE_AS_IS
             if not op.args:
                 return LEAVE_AS_IS
-            minimum = self.intervalframe.minvalues[op.index]
-            maximum = self.intervalframe.maxvalues[op.index]
             arg0 = self.getarg(op, 0)
             arg0minimum = self.intervalframe.minvalues[op.args[0].index]
             arg0maximum = self.intervalframe.maxvalues[op.args[0].index]
