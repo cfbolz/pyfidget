@@ -164,5 +164,16 @@ def test_cse():
     """
     check_optimize(ops, expected)
 
+def test_abs_neg():
+    ops = """
+x var-x
+a neg x
+b abs a
+"""
+    expected = """
+x var-x
+b abs x
+"""
+    check_optimize(ops, expected)
 
 

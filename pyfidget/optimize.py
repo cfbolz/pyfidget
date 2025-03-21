@@ -163,6 +163,8 @@ class Optimizer(object):
             return arg0
         if arg0maximum < 0:
             return self.defer1("neg", name, arg0, arg0minimum, arg0maximum)
+        if arg0.func == "neg":
+            return self.newop(name, "abs", [self.getarg(arg0, 0)])
         return LEAVE_AS_IS
 
     def opt_neg(self, name, arg0, arg0minimum, arg0maximum):
