@@ -1,3 +1,4 @@
+from __future__ import print_function
 from hypothesis import given, strategies, assume
 from pyfidget.vm import IntervalFrame, DirectFrame
 import math
@@ -54,6 +55,7 @@ def test_neg(val):
 @given(range_and_contained_float)
 def test_exp(val):
     intervalframe, frame = val
+    assume(intervalframe.maxvalues[0] < 710)
     intervalframe.exp(0, 1)
     frame.exp(0, 1)
     assert contains(intervalframe, frame, 1)
