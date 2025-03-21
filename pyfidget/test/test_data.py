@@ -51,6 +51,13 @@ def test_neg(val):
     frame.neg(0, 1)
     assert contains(intervalframe, frame, 1)
 
+@given(range_and_contained_float)
+def test_exp(val):
+    intervalframe, frame = val
+    intervalframe.exp(0, 1)
+    frame.exp(0, 1)
+    assert contains(intervalframe, frame, 1)
+
 def make_range_and_contained_float2(a1, b1, c1, a2, b2, c2):
     a1, b1, c1 = sorted([a1, b1, c1])
     a2, b2, c2 = sorted([a2, b2, c2])

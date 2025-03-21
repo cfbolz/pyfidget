@@ -1,6 +1,6 @@
 from __future__ import division, print_function
 import math
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 
 def should_unroll_one_iteration(program):
     return True
@@ -64,10 +64,6 @@ class Program(object):
             op.index = index
 
 class Frame(object):
-    #_virtualizable_ = ['values[*]', 'x', 'y', 'z']
-    def __init__(self, program):
-        self.program = program
-
     @jit.unroll_safe
     def run(self):
         program = self.program
@@ -122,7 +118,9 @@ class Frame(object):
             assert index >= 0
 
 
-class DirectFrame(Frame):
+class DirectFrame(object):
+    objectmodel.import_from_mixin(Frame)
+
     def __init__(self, program):
         self.program = program
 
@@ -167,10 +165,11 @@ class DirectFrame(Frame):
         self.floatvalues[resindex] = min(self.floatvalues[arg0index], self.floatvalues[arg1index])
 
     def square(self, arg0index, resindex):
-        self.floatvalues[resindex] = self.floatvalues[arg0index] ** 2
+        val = self.floatvalues[arg0index]
+        self.floatvalues[resindex] = val*val
 
     def sqrt(self, arg0index, resindex):
-        self.floatvalues[resindex] = self.floatvalues[arg0index] ** 0.5
+        self.floatvalues[resindex] = math.sqrt(self.floatvalues[arg0index])
 
     def exp(self, arg0index, resindex):
         self.floatvalues[resindex] = math.exp(self.floatvalues[arg0index])
@@ -181,8 +180,25 @@ class DirectFrame(Frame):
     def abs(self, arg0index, resindex):
         self.floatvalues[resindex] = abs(self.floatvalues[arg0index])
 
+def float_choose(cond, iftrue, iffalse):
+    return cond * iftrue + (1 - cond) * iffalse
 
-class IntervalFrame(Frame):
+def min(a, b):
+    return float_choose(a <= b, a, b)
+
+def max(a, b):
+    return float_choose(a <= b, b, a)
+
+def min4(a, b, c, d):
+    return min(min(a, b), min(c, d))
+
+def max4(a, b, c, d):
+    return max(max(a, b), max(c, d))
+
+
+class IntervalFrame(object):
+    objectmodel.import_from_mixin(Frame)
+
     def __init__(self, program):
         self.program = program
 
@@ -231,8 +247,8 @@ class IntervalFrame(Frame):
     def mul(self, arg0index, arg1index, resindex):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         min1, max1 = self.minvalues[arg1index], self.maxvalues[arg1index]
-        self.minvalues[resindex] = min(min0 * min1, min0 * max1, max0 * min1, max0 * max1)
-        self.maxvalues[resindex] = max(min0 * min1, min0 * max1, max0 * min1, max0 * max1)
+        self.minvalues[resindex] = min4(min0 * min1, min0 * max1, max0 * min1, max0 * max1)
+        self.maxvalues[resindex] = max4(min0 * min1, min0 * max1, max0 * min1, max0 * max1)
 
     def max(self, arg0index, arg1index, resindex):
         self.minvalues[resindex] = max(self.minvalues[arg0index], self.minvalues[arg1index])
@@ -275,6 +291,10 @@ class IntervalFrame(Frame):
     def neg(self, arg0index, resindex):
         self.minvalues[resindex] = -self.maxvalues[arg0index]
         self.maxvalues[resindex] = -self.minvalues[arg0index]
+
+    def exp(self, arg0index, resindex):
+        self.minvalues[resindex] = math.exp(self.minvalues[arg0index])
+        self.maxvalues[resindex] = math.exp(self.maxvalues[arg0index])
 
 
 def pretty_format(operations):

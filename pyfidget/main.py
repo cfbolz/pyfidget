@@ -1,5 +1,5 @@
 import time
-from pyfidget.vm import render_image_naive, render_image_octree, write_ppm, Frame, Program
+from pyfidget.vm import render_image_naive, render_image_octree, write_ppm, DirectFrame, IntervalFrame, Program
 from pyfidget.parse import parse
 
 from rpython.rlib import jit
@@ -24,7 +24,6 @@ def main(argv):
     with open(argv[1]) as f:
         code = f.read()
     operations = parse(code)
-    frame = Frame(Program(operations))
     if len(argv) > 3:
         length = int(argv[3])
     else:
@@ -33,10 +32,12 @@ def main(argv):
     args = -2., 2., -2., 2.
     if we_are_translated():
         args = NonConstant(-2.), NonConstant(2.), NonConstant(-2.), NonConstant(2.)
+    frame = DirectFrame(Program(operations))
     data = render_image_naive(frame, length, length, *args)
     t2 = time.time()
     print("time, naive: %s" % (t2 - t1))
     t1 = time.time()
+    frame = IntervalFrame(Program(operations))
     data = render_image_octree(frame, length, length, *args)
     t2 = time.time()
     print("time, octree: %s" % (t2 - t1))
