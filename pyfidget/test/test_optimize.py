@@ -99,6 +99,18 @@ out mul a b
 y var-y
 out square y""")
 
+def test_optimize_min_max_same():
+    ops = parse("""
+x var-x
+_0 const 0.0
+x2 add x _0
+a min x x2
+b max x x2
+out mul a b
+""")
+    check_optimize(ops, 0.0, 100.0, 1000, 2000, -1000, 1000, """\
+x var-x
+out square x""")
 
 def test_optimize_neg_neg():
     ops = parse("""

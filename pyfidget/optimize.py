@@ -199,11 +199,15 @@ class Optimizer(object):
     def opt_min(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0maximum < arg1minimum:
             return arg0
+        if arg0 is arg1:
+            return arg0
         return LEAVE_AS_IS
 
     @symmetric
     def opt_max(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0minimum > arg1maximum:
+            return arg0
+        if arg0 is arg1:
             return arg0
         return LEAVE_AS_IS
 
