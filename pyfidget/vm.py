@@ -436,7 +436,35 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
                 print("====================================", level, new_startx, new_stopx, new_starty, new_stopy)
             render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
 
-
+def render_image_naive_optimize_check(frame, width, height, minx, maxx, miny, maxy):
+    from pyfidget.optimize import opt_program
+    opt_frame = DirectFrame(opt_program(frame.program, minx, maxx, miny, maxy, 0.0, 0.0))
+    minx = float(minx)
+    maxx = float(maxx)
+    miny = float(miny)
+    maxy = float(maxy)
+    result = [[" " for _ in range(width)] for _ in range(height)]
+    num_pixels = width * height
+    result = [" "] * num_pixels
+    index = 0
+    row_index = 0
+    column_index = 0
+    while 1:
+        x = minx + (maxx - minx) * column_index / (width - 1)
+        y = miny + (maxy - miny) * row_index / (height - 1)
+        res = frame.run_floats(x, y, 0)
+        reg_res = " " if res > 0 else "#" # TODO: use int_choose
+        res = opt_frame.run_floats(x, y, 0)
+        opt_res = " " if res > 0 else "#" # TODO: use int_choose
+        assert opt_res == reg_res
+        index += 1
+        column_index += 1
+        if column_index >= width:
+            column_index = 0
+            row_index += 1
+            if row_index >= height:
+                break
+    return result
 
 def _fill_black(width, height, result, startx, stopx, starty, stopy):
     for column_index in range(startx, stopx):
