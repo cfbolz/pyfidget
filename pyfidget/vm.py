@@ -344,7 +344,6 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
     return result
 
 def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy):
-    from pyfidget.data import Float
     num_pixels = width * height
     for column_index in range(startx, stopx):
         for row_index in range(starty, stopy):

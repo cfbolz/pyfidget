@@ -2,7 +2,6 @@ from __future__ import division, print_function
 from pyfidget.optimize import optimize
 from pyfidget.parse import parse
 from pyfidget.vm import pretty_format, Program
-from pyfidget.data import FloatRange
 
 def check_optimize(ops, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-1000, maxz=1000, expected=None):
     if isinstance(ops, str):
