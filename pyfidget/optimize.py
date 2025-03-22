@@ -110,7 +110,7 @@ class Optimizer(object):
         arg1 = self.getarg(op, 1)
         for index in range(len(self.resultops) - 1, max(-1, len(self.resultops) - WINDOW_SIZE), -1):
             oldop = self.resultops[index]
-            if isinstance(oldop, Operation) and len(oldop.args) == 2:
+            if isinstance(oldop, Operation) and oldop.func == op.func and len(oldop.args) == 2:
                 if oldop.args[0] is arg0 and oldop.args[1] is arg1:
                     return oldop
         return LEAVE_AS_IS
