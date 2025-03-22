@@ -133,15 +133,10 @@ class DirectFrame(object):
     def run_floats(self, x, y, z):
         self.setxyz(x, y, z)
         self.run()
-        res = self.floatvalues[len(self.program.operations) - 1]
-        self.done()
-        return res
+        return self.floatvalues[len(self.program.operations) - 1]
 
     def setup(self, length):
         self.floatvalues = [0.0] * length
-
-    def done(self):
-        self.floatvalues = None
 
     def setxyz(self, x, y, z):
         self.x = x
@@ -217,16 +212,11 @@ class IntervalFrame(object):
         self.setxyz(minx, maxx, miny, maxy, minz, maxz)
         self.run()
         index = len(self.program.operations) - 1
-        res = self.minvalues[index], self.maxvalues[index]
-        self.done()
-        return res
+        return self.minvalues[index], self.maxvalues[index]
 
     def setup(self, length):
         self.minvalues = [0.0] * length
         self.maxvalues = [0.0] * length
-
-    def done(self):
-        self.minvalues = self.maxvalues = None
 
     def setxyz(self, minx, maxx, miny, maxy, minz, maxz):
         self.minx = minx
