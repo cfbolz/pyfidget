@@ -15,9 +15,9 @@ def optimize(program, a, b, c, d, e, f):
     result = opt.opreplacements[program.num_operations() - 1]
     resultops = opt.resultops
     res = dce(resultops, result)
-    if not objectmodel.we_are_translated():
-        print("length before", program.num_operations(), "len after", res.num_operations())
-        print(res)
+    #if not objectmodel.we_are_translated():
+    #    print("length before", program.num_operations(), "len after", res.num_operations())
+    #    print(res)
     return res
 
 @jit.dont_look_inside
@@ -98,10 +98,11 @@ class Optimizer(object):
         return self.resultops.add_op(func, arg0, arg1)
 
     def newconst(self, value):
-        if value in self.seen_consts:
-            return self.seen_consts[value]
+        #if value in self.seen_consts:
+        #    stats.dedup_const_worked += 1
+        #    return self.seen_consts[value]
         const = self.resultops.add_const(value)
-        self.seen_consts[value] = const
+        #self.seen_consts[value] = const
         return const
 
     def optimize(self, a, b, c, d, e, f):
@@ -130,14 +131,17 @@ class Optimizer(object):
             self.opreplacements[index] = newop
 
     def cse(self, op, func):
+        return LEAVE_AS_IS
         arg0, arg1 = self.program.get_args(op)
         arg0 = self.get_replacement(arg0)
         arg1 = self.get_replacement(arg1)
         num_resultops = self.resultops.num_operations()
+        num_correct_ops = 0
         for index in range(num_resultops - 1, max(-1, num_resultops - WINDOW_SIZE), -1):
             other_func = self.resultops.get_func(index)
             if other_func != func:
                 continue
+            num_correct_ops += 1
             other_arg0, other_arg1 = self.resultops.get_args(index)
             if other_arg0 == arg0 and other_arg1 == arg1:
                 stats.cse_worked += 1
