@@ -6,6 +6,7 @@ from pyfidget.optimize import optimize
 from pyfidget.parse import parse
 from pyfidget.vm import pretty_format, Program, DirectFrame
 from pyfidget.vm import Const, Operation, IntervalFrame, pretty_format
+from pyfidget.operations import OPS
 
 def check_optimize(ops, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-1000, maxz=1000, expected=None):
     if isinstance(ops, str):
@@ -231,7 +232,7 @@ def opgen(func):
 
 @opgen
 def make_op0(data, operations):
-    func = data.draw(strategies.sampled_from(['var-x', 'var-y', 'var-z']))
+    func = data.draw(strategies.sampled_from([OPS.var_x, OPS.var_y, OPS.var_z]))
     return Operation(None, func, [])
 
 @opgen
@@ -242,14 +243,14 @@ def make_const(data, operations):
 def make_op1(data, operations):
     arg0 = data.draw(strategies.sampled_from(operations))
     func = data.draw(strategies.sampled_from(['square', 'sqrt', 'neg', 'abs']))
-    return Operation(None, func, [arg0])
+    return Operation(None, OPS.get(func), [arg0])
 
 @opgen
 def make_op2(data, operations):
     arg0 = data.draw(strategies.sampled_from(operations))
     arg1 = data.draw(strategies.sampled_from(operations))
     func = data.draw(strategies.sampled_from(['add', 'sub', 'min', 'max', 'mul']))
-    return Operation(None, func, [arg0, arg1])
+    return Operation(None, OPS.get(func), [arg0, arg1])
 
 @given(strategies.data())
 def test_random(data):
@@ -278,7 +279,7 @@ def test_random(data):
             args = [arg0, prev_op]
         else:
             args = [prev_op, arg0]
-        prev_op = Operation("_fin%x" % i, func, args)
+        prev_op = Operation("_fin%x" % i, OPS.get(func), args)
         ops.append(prev_op)
     program = Program(ops)
     frame = DirectFrame(program)

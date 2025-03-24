@@ -1,3 +1,4 @@
+from pyfidget.operations import OPS
 from pyfidget.vm import Operation, Const
 
 def parse(code):
@@ -14,7 +15,7 @@ def parse(code):
         if len(parts) == 2:
             name, func = parts
             args = []
-            op = Operation(name, func, args)
+            op = Operation(name, OPS.get(func), args)
         elif len(parts) >= 3:
             name = parts[0]
             func = parts[1]
@@ -23,7 +24,7 @@ def parse(code):
                 op = Const(name, float(args[0]))
             else:
                 args = [opnames[arg] for arg in args]
-                op = Operation(name, func, args)
+                op = Operation(name, OPS.get(func), args)
         else:
             raise ValueError("Invalid line: %s" % line)
         opnames[name] = op

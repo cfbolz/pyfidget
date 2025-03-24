@@ -2,6 +2,7 @@ from __future__ import division, print_function
 import time
 import math
 from rpython.rlib import jit, objectmodel
+from pyfidget.operations import OPS
 
 def should_unroll_one_iteration(program):
     return True
@@ -42,10 +43,10 @@ class Value(object):
 
 class Const(Value):
     _immutable_fields_ = ['value']
+    func = OPS.get('const')
     def __init__(self, name, value):
         self.name = name
         self.value = value
-        self.func = 'const'
         self.args = []
 
     def _tostr(self):
@@ -53,15 +54,16 @@ class Const(Value):
 
 class Operation(Value):
     def __init__(self, name, func, args):
+        assert len(func) == 1
         self.name = name
         self.func = func
         self.args = args
 
     def __repr__(self):
-        return "Operation(%r, %r, %r)" % (self.name, self.func, self.args)
+        return "Operation(%r, %r, %r)" % (self.name, OPS.char_to_name(self.func), self.args)
 
     def _tostr(self):
-        return "%s = %s %s" % (self.name, self.func, " ".join([arg.name for arg in self.args]))
+        return "%s = %s %s" % (self.name, OPS.char_to_name(self.func), " ".join([arg.name for arg in self.args]))
 
 class Program(object):
     _immutable_fields_ = ['operations[*]']
@@ -85,11 +87,11 @@ class Frame(object):
         if isinstance(op, Const):
             res = self.make_constant(op.value, op.index)
         elif isinstance(op, Operation):
-            if op.func == 'var-x':
+            if op.func == OPS.var_x:
                 self.get_x(op.index)
-            elif op.func == 'var-y':
+            elif op.func == OPS.var_y:
                 self.get_y(op.index)
-            elif op.func == 'var-z':
+            elif op.func == OPS.var_z:
                 self.get_z(op.index)
             else:
                 arg0index = op.args[0].index
@@ -100,25 +102,25 @@ class Frame(object):
                     pass
                 else:
                     raise ValueError("number of arguments not supported")
-                if op.func == 'add':
+                if op.func == OPS.add:
                     self.add(arg0index, arg1index, op.index)
-                elif op.func == 'sub':
+                elif op.func == OPS.sub:
                     self.sub(arg0index, arg1index, op.index)
-                elif op.func == 'mul':
+                elif op.func == OPS.mul:
                     self.mul(arg0index, arg1index, op.index)
-                elif op.func == 'max':
+                elif op.func == OPS.max:
                     self.max(arg0index, arg1index, op.index)
-                elif op.func == 'min':
+                elif op.func == OPS.min:
                     self.min(arg0index, arg1index, op.index)
-                elif op.func == 'square':
+                elif op.func == OPS.square:
                     self.square(arg0index, op.index)
-                elif op.func == 'sqrt':
+                elif op.func == OPS.sqrt:
                     self.sqrt(arg0index, op.index)
-                elif op.func == 'exp':
+                elif op.func == OPS.exp:
                     self.exp(arg0index, op.index)
-                elif op.func == 'neg':
+                elif op.func == OPS.neg:
                     self.neg(arg0index, op.index)
-                elif op.func == 'abs':
+                elif op.func == OPS.abs:
                     self.abs(arg0index, op.index)
                 else:
                     raise ValueError("Invalid operation: %s" % op)
@@ -311,7 +313,7 @@ def pretty_format(operations):
             result.append("%s const %s" % (op.name, op.value))
         elif isinstance(op, Operation):
             args = " ".join(arg.name for arg in op.args)
-            result.append("%s %s%s%s" % (op.name, op.func, " " if args else "", args))
+            result.append("%s %s%s%s" % (op.name, OPS.char_to_name(op.func), " " if args else "", args))
     return "\n".join(result)
 
 def render_image_naive(frame, width, height, minx, maxx, miny, maxy):

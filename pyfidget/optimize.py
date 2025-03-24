@@ -2,6 +2,7 @@ import math
 
 from rpython.rlib import jit, objectmodel
 
+from pyfidget.operations import OPS
 from pyfidget.vm import Const, Operation, Program, IntervalFrame, pretty_format
 
 LEAVE_AS_IS = Const('dummy', -42.0)
@@ -119,11 +120,11 @@ class Optimizer(object):
         if isinstance(op, Const):
             return self.newconst(op.name, op.value)
         elif isinstance(op, Operation):
-            if op.func == 'var-x':
+            if op.func == OPS.var_x:
                 return LEAVE_AS_IS
-            if op.func == 'var-y':
+            if op.func == OPS.var_y:
                 return LEAVE_AS_IS
-            if op.func == 'var-z':
+            if op.func == OPS.var_z:
                 return LEAVE_AS_IS
             if not op.args:
                 return LEAVE_AS_IS
@@ -136,15 +137,15 @@ class Optimizer(object):
             arg1 = self.getarg(op, 1)
             arg1minimum = self.intervalframe.minvalues[op.args[1].index]
             arg1maximum = self.intervalframe.maxvalues[op.args[1].index]
-            if op.func == 'add':
+            if op.func == OPS.add:
                 return self.opt_add(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
-            if op.func == 'sub':
+            if op.func == OPS.sub:
                 return self.opt_sub(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
-            if op.func == 'min':
+            if op.func == OPS.min:
                 return self.opt_min(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
-            if op.func == 'max':
+            if op.func == OPS.max:
                 return self.opt_max(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
-            if op.func == 'mul':
+            if op.func == OPS.mul:
                 return self.opt_mul(op.name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum)
             return LEAVE_AS_IS
         else:
@@ -160,9 +161,9 @@ class Optimizer(object):
         return resultops
 
     def opt_op1(self, func, name, arg0, arg0minimum, arg0maximum):
-        if func == "abs":
+        if func == OPS.abs:
             return self.opt_abs(name, arg0, arg0minimum, arg0maximum)
-        if func == "neg":
+        if func == OPS.neg:
             return self.opt_neg(name, arg0, arg0minimum, arg0maximum)
         return LEAVE_AS_IS
 
@@ -170,13 +171,13 @@ class Optimizer(object):
         if arg0minimum >= 0:
             return arg0
         if arg0maximum < 0:
-            return self.defer1("neg", name, arg0, arg0minimum, arg0maximum)
-        if arg0.func == "neg":
-            return self.newop(name, "abs", [self.getarg(arg0, 0)])
+            return self.defer1(OPS.neg, name, arg0, arg0minimum, arg0maximum)
+        if arg0.func == OPS.neg:
+            return self.newop(name, OPS.abs, [self.getarg(arg0, 0)])
         return LEAVE_AS_IS
 
     def opt_neg(self, name, arg0, arg0minimum, arg0maximum):
-        if arg0.func == 'neg':
+        if arg0.func == OPS.neg:
             return self.getarg(arg0, 0)
         return LEAVE_AS_IS
 
@@ -193,7 +194,7 @@ class Optimizer(object):
         if arg0 is arg1:
             return self.newconst(name, 0.0)
         if arg0minimum == arg0maximum == 0:
-            return self.defer1("neg", name, arg1, arg1minimum, arg1maximum)
+            return self.defer1(OPS.neg, name, arg1, arg1minimum, arg1maximum)
         if arg1minimum == arg1maximum == 0:
             return arg0
         return LEAVE_AS_IS
@@ -217,13 +218,13 @@ class Optimizer(object):
     @symmetric
     def opt_mul(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0 is arg1:
-            return self.defer1("square", name, arg0, arg0minimum, arg1maximum)
+            return self.defer1(OPS.square, name, arg0, arg0minimum, arg1maximum)
         if arg0minimum == arg0maximum == 0.0:
             return self.newconst(name, 0.0)
         if arg0minimum == arg0maximum == 1.0:
             return arg1
         if arg0minimum == arg0maximum == -1.0:
-            return self.defer1("neg", name, arg1, arg1minimum, arg1maximum)
+            return self.defer1(OPS.neg, name, arg1, arg1minimum, arg1maximum)
         return LEAVE_AS_IS
 
     def defer1(self, func, name, arg0, arg0minimum, arg0maximum):
