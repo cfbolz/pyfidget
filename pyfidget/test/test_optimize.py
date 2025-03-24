@@ -272,6 +272,18 @@ out2 sub b c
 """
     check_optimize(ops, expected)
 
+def test_min_backwards_removal():
+    ops = """
+x var-x
+y var-y
+out min x y
+"""
+    expected = """
+y var-y
+"""
+    check_optimize(ops, 0.01, 10.0, -10, 10, 0, 100, expected)
+
+
 # ____________________________________________________________
 # random test case generation
 

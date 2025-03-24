@@ -19,6 +19,7 @@ def optimize(program, a, b, c, d, e, f):
     maximum = opt.intervalframe.maxvalues[resindex]
     if minimum > 0.0 or maximum <= 0:
         return None, minimum, maximum
+    result = work_backwards(resultops, result, opt.minvalues, opt.maxvalues)
     res = dce(resultops, result)
     #if not objectmodel.we_are_translated():
     #    print("length before", program.num_operations(), "len after", res.num_operations())
@@ -97,9 +98,12 @@ stats = Stats()
 class Optimizer(object):
     def __init__(self, program):
         self.program = program
-        self.resultops = ProgramBuilder(program.num_operations())
+        num_operations = program.num_operations()
+        self.resultops = ProgramBuilder(num_operations)
         # old index -> new index
-        self.opreplacements = [0] * program.num_operations()
+        self.opreplacements = [0] * num_operations
+        self.minvalues = objectmodel.newlist_hint(num_operations)
+        self.maxvalues = objectmodel.newlist_hint(num_operations)
         self.seen_consts = {}
 
     def get_replacement(self, op):
@@ -116,6 +120,8 @@ class Optimizer(object):
         #    stats.dedup_const_worked += 1
         #    return self.seen_consts[value]
         const = self.resultops.add_const(value)
+        self.minvalues.append(value)
+        self.maxvalues.append(value)
         #self.seen_consts[value] = const
         return const
 
@@ -131,9 +137,9 @@ class Optimizer(object):
             func = program.get_func(index)
             stats.ops[ord(func)] += 1
             newop = self._optimize_op(index)
+            minimum = self.intervalframe.minvalues[index]
+            maximum = self.intervalframe.maxvalues[index]
             if newop == LEAVE_AS_IS:
-                minimum = self.intervalframe.minvalues[index]
-                maximum = self.intervalframe.maxvalues[index]
                 # const-folding
                 if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
                     stats.constfold += 1
@@ -142,10 +148,15 @@ class Optimizer(object):
                 newop = self.cse(index, func)
             if newop == LEAVE_AS_IS:
                 arg0, arg1 = program.get_args(index)
-                newop = self.resultops.add_op(func, self.get_replacement(arg0), self.get_replacement(arg1))
+                newop = self.newop(func, self.get_replacement(arg0), self.get_replacement(arg1))
             if not objectmodel.we_are_translated():
                 print(program.op_to_str(index), "-->\t", self.resultops.op_to_str(newop), "\t", self.intervalframe.minvalues[index], self.intervalframe.maxvalues[index])
             self.opreplacements[index] = newop
+            if self.resultops.num_operations() > len(self.minvalues):
+                self.minvalues.append(minimum)
+                self.maxvalues.append(maximum)
+            assert self.resultops.num_operations() == len(self.minvalues)
+
 
     def cse(self, op, func):
         return LEAVE_AS_IS
@@ -357,3 +368,39 @@ def dce(ops, final_op):
             new_positions[index] = newop
         index += 1
     return output.finish()
+
+
+def work_backwards(resultops, result, minvalues, maxvalues):
+    if not objectmodel.we_are_translated():
+        for op in resultops:
+            print(resultops.op_to_str(op), minvalues[op], maxvalues[op])
+    def check_gt(resultops, op, minvalues, maxvalues, val=0.0):
+        while 1:
+            func = resultops.get_func(op)
+            if not objectmodel.we_are_translated():
+                print("round!", OPS.char_to_name(func), "_%x" % op, minvalues[op], maxvalues[op])
+            #if func == OPS.max:
+                #arg0, arg1 = resultops.get_args(op)
+                #narg0 = check_ge(arg0)
+                #narg1 = check_ge(arg1)
+                #if narg0 != arg0 or narg1 != arg1:
+                #    import pdb;pdb.set_trace()
+                #if maxvalues[arg0] < 0:
+                #    import pdb;pdb.set_trace()
+            #if func == OPS.add:
+            #    import pdb;pdb.set_trace()
+            if func == OPS.min:
+                arg0, arg1 = resultops.get_args(op)
+                if minvalues[arg0] > val:
+                    op = arg1
+                    continue
+                if minvalues[arg1] > val:
+                    op = arg0
+                    continue
+            break
+        return op
+    otherop = check_gt(resultops, result, minvalues, maxvalues)
+    if result != otherop:
+        if not objectmodel.we_are_translated():
+            print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
+    return otherop
