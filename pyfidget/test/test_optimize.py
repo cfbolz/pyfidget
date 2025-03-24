@@ -6,7 +6,7 @@ from hypothesis import given, strategies, assume
 
 from pyfidget.optimize import optimize
 from pyfidget.parse import parse
-from pyfidget.vm import Program, DirectFrame
+from pyfidget.vm import Program, ProgramBuilder, DirectFrame
 from pyfidget.vm import IntervalFrame
 from pyfidget.operations import OPS
 
@@ -32,7 +32,7 @@ def check_optimize(program, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-
 def check_well_formed(program):
     seen = set()
     for op in program:
-        if op: # ignore first op, due to 0 meaning 'no arg' sometimes
+        if op and program.get_func(op) != OPS.const: # ignore first op, due to 0 meaning 'no arg' sometimes
             for arg in program.get_args(op):
                 assert arg in seen
         seen.add(op)
@@ -285,27 +285,27 @@ def opgen(func):
 @opgen
 def make_op0(data, operations):
     func = data.draw(strategies.sampled_from([OPS.var_x, OPS.var_y, OPS.var_z]))
-    return Operation(None, func, [])
+    return operations.add_op(func)
 
 @opgen
 def make_const(data, operations):
-    return Const(None, data.draw(regular_floats))
+    return operations.add_const(data.draw(regular_floats))
 
 @opgen
 def make_op1(data, operations):
-    arg0 = data.draw(strategies.sampled_from(operations))
+    arg0 = data.draw(strategies.sampled_from(list(operations)))
     func = data.draw(strategies.sampled_from(['square', 'sqrt', 'neg', 'abs']))
-    return Operation(None, OPS.get(func), [arg0])
+    return operations.add_op(OPS.get(func), arg0)
 
 @opgen
 def make_op2(data, operations):
-    arg0 = data.draw(strategies.sampled_from(operations))
-    arg1 = data.draw(strategies.sampled_from(operations))
+    arg0 = data.draw(strategies.sampled_from(list(operations)))
+    arg1 = data.draw(strategies.sampled_from(list(operations)))
     func = data.draw(strategies.sampled_from(['add', 'sub', 'min', 'max', 'mul']))
-    return Operation(None, OPS.get(func), [arg0, arg1])
+    return operations.add_op(OPS.get(func), arg0, arg1)
 
 @given(strategies.data())
-def Xtest_random(data):
+def test_random(data):
     num_ops = data.draw(strategies.integers(1, 100))
     num_final_ops = data.draw(strategies.integers(3, 10))
     a = data.draw(regular_floats)
@@ -318,47 +318,54 @@ def Xtest_random(data):
     c = data.draw(regular_floats)
     miny, y, maxy = sorted([a, b, c])
 
-    ops = []
+    ops = ProgramBuilder(num_ops)
     for i in range(num_ops):
         func = data.draw(strategies.sampled_from(all_operation_generators))
-        ops.append(func(data, ops))
-        ops[-1].name = '_%x' % i
-    prev_op = ops[-1]
+        func(data, ops)
+    prev_op = ops.num_operations() - 1
     for i in range(num_final_ops):
-        arg0 = data.draw(strategies.sampled_from(ops))
+        arg0 = data.draw(strategies.sampled_from(list(iter(ops))))
         func = data.draw(strategies.sampled_from(['add', 'sub', 'min', 'max', 'mul']))
         if data.draw(strategies.booleans()):
             args = [arg0, prev_op]
         else:
             args = [prev_op, arg0]
-        prev_op = Operation("_fin%x" % i, OPS.get(func), args)
-        ops.append(prev_op)
-    program = Program(ops)
+        prev_op = ops.add_op(OPS.get(func), *args)
+    program = ops.finish()
     frame = DirectFrame(program)
-    resultops, _, _ = optimize(program, minx, maxx, miny, maxy, 0.0, 0.0)
-    check_well_formed(resultops)
-    opt_frame = DirectFrame(Program(resultops))
+    resultops, minimum, maximum = optimize(program, minx, maxx, miny, maxy, 0.0, 0.0)
+    if resultops:
+        check_well_formed(resultops)
     try:
         res = frame.run_floats(x, y, 0)
     except Exception as e:
-        try:
-            res = opt_frame.run_floats(x, y, 0)
-        except Exception as e2:
-            assert type(e) is type(e2)
-        else:
-            pass # optimizer is allowed to remove exceptions
+        if resultops:
+            opt_frame = DirectFrame(resultops)
+            try:
+                res = opt_frame.run_floats(x, y, 0)
+            except Exception as e2:
+                assert type(e) is type(e2)
+            else:
+                pass # optimizer is allowed to remove exceptions
     else:
         if math.isnan(res):
             return
         reg_res = " " if res > 0 else "#"
-        res2 = opt_frame.run_floats(x, y, 0)
-        opt_res = " " if res2 > 0 else "#"
+        if resultops:
+            opt_frame = DirectFrame(resultops)
+            res2 = opt_frame.run_floats(x, y, 0)
+            opt_res = " " if res2 > 0 else "#"
+        else:
+            res2 = minimum
+            if minimum > 0:
+                opt_res = " "
+            else:
+                opt_res = "#"
         if not reg_res == opt_res:
             print(x, y, res, res2, reg_res, opt_res)
-            formatted = pretty_format(ops)
-            print(formatted)
+            print(ops)
             print("----")
-            formatted = pretty_format(resultops)
-            print(formatted)
+            print(resultops)
+            import pdb;pdb.set_trace()
             assert 0
 

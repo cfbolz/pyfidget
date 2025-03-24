@@ -17,7 +17,7 @@ def optimize(program, a, b, c, d, e, f):
     resultops = opt.resultops
     minimum = opt.intervalframe.minvalues[resindex]
     maximum = opt.intervalframe.maxvalues[resindex]
-    if minimum >= 0.0 or maximum < 0:
+    if minimum > 0.0 or maximum <= 0:
         return None, minimum, maximum
     res = dce(resultops, result)
     #if not objectmodel.we_are_translated():

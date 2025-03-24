@@ -399,7 +399,7 @@ def render_image_octree(frame, width, height, minx, maxx, miny, maxy):
     render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
     return result
 
-LIMIT = 4
+LIMIT = 8
 
 def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept
