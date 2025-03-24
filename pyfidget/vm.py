@@ -34,11 +34,10 @@ driver_render_part = jit.JitDriver(
 
 
 class ProgramBuilder(object):
-    def __init__(self):
-        self.funcs = []
-        self.arguments = []
+    def __init__(self, sizehint):
+        self.funcs = objectmodel.newlist_hint(sizehint)
+        self.arguments = objectmodel.newlist_hint(sizehint * 2)
         self.consts = []
-        self.names = []
 
     def add_const(self, const, name=None):
         arg = len(self.consts)
@@ -52,7 +51,6 @@ class ProgramBuilder(object):
         self.funcs.append(func)
         self.arguments.append(arg0)
         self.arguments.append(arg1)
-        self.names.append(name)
         return res
 
     def finish(self):
@@ -395,7 +393,7 @@ def render_image_octree(frame, width, height, minx, maxx, miny, maxy):
     render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
     return result
 
-LIMIT = 16
+LIMIT = 8
 
 def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept

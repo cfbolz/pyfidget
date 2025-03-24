@@ -37,7 +37,7 @@ WINDOW_SIZE = 100
 class Optimizer(object):
     def __init__(self, program):
         self.program = program
-        self.resultops = ProgramBuilder()
+        self.resultops = ProgramBuilder(program.num_operations())
         # old index -> new index
         self.opreplacements = [0] * program.num_operations()
         self.seen_consts = {}
@@ -235,7 +235,7 @@ def dce(ops, final_op):
     consts = [0.0] * alive_consts
     index = 0
 
-    output = ProgramBuilder()
+    output = ProgramBuilder(alive_ops)
     for op in range(final_op + 1):
         if new_positions[index] >= 0:
             func = ops.get_func(op)

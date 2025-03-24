@@ -2,9 +2,10 @@ from pyfidget.operations import OPS
 from pyfidget.vm import ProgramBuilder
 
 def parse(code):
-    program = ProgramBuilder()
+    lines = code.split("\n")
+    program = ProgramBuilder(len(lines))
     opnames = {}
-    for line in code.split("\n"):
+    for line in lines:
         line = line.strip()
         if not line:
             continue
