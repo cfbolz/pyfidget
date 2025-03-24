@@ -399,7 +399,7 @@ def render_image_octree(frame, width, height, minx, maxx, miny, maxy):
     render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
     return result
 
-LIMIT = 8
+LIMIT = 4
 
 def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept
@@ -571,22 +571,22 @@ def _fill_black(width, height, result, startx, stopx, starty, stopy):
 
 def flat_list_to_ppm(data, width, height):
     assert len(data) == width * height
-    row = []
-    rows = []
+    row = [None] * width
+    rows = objectmodel.newlist_hint(height)
+    rowindex = 0
     for cell in data:
         if cell == " ":
-            row.append("0")
+            row[rowindex] = "0"
         else:
-            row.append("1")
-        if len(row) == width:
-            row.append('') # rpython workaround, super weird
-            row.pop()
+            row[rowindex] = "1"
+        rowindex += 1
+        if rowindex == width:
             rows.append(" ".join(row))
-            row = []
+            rowindex = 0
     rows.append("%d %d" % (width, height))
     rows.append("P1")
     rows.reverse()
-    assert not row
+    assert not rowindex
     return "\n".join(rows)
 
 def flat_list_to_ppm_binary(data, width, height):

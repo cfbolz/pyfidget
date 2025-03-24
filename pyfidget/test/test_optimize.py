@@ -255,6 +255,23 @@ out2 sub b c
 """
     check_optimize(ops, expected)
 
+def test_square_neg():
+    ops = """
+x var-x
+a neg x
+b square a
+c const 10
+out2 sub b c
+
+"""
+    expected = """
+x var-x
+b square x
+c const 10
+out2 sub b c
+"""
+    check_optimize(ops, expected)
+
 # ____________________________________________________________
 # random test case generation
 

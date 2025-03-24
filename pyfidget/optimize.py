@@ -48,6 +48,7 @@ class Stats(object):
     abs_neg = 0
     abs_of_neg = 0
     neg_neg = 0
+    abs_of_square = 0
     add0 = 0
     sub_self = 0
     zero_sub = 0
@@ -72,6 +73,7 @@ class Stats(object):
         print('abs_neg', self.abs_neg)
         print('abs_of_neg', self.abs_of_neg)
         print('neg_neg', self.neg_neg)
+        print('abs_of_square', self.abs_of_square)
         print('add0', self.add0)
         print('sub_self', self.sub_self)
         print('zero_sub', self.zero_sub)
@@ -190,6 +192,8 @@ class Optimizer(object):
         #        import pdb;pdb.set_trace()
         if func == OPS.abs:
             return self.opt_abs(arg0, arg0minimum, arg0maximum)
+        if func == OPS.square:
+            return self.opt_square(arg0, arg0minimum, arg0maximum)
         if func == OPS.neg:
             return self.opt_neg(arg0, arg0minimum, arg0maximum)
         if func == OPS.add:
@@ -214,6 +218,12 @@ class Optimizer(object):
         if self.resultops.get_func(arg0) == OPS.neg:
             stats.abs_of_neg += 1
             return self.newop(OPS.abs, self.getarg(arg0, 0))
+        return LEAVE_AS_IS
+
+    def opt_square(self, arg0, arg0minimum, arg0maximum):
+        if self.resultops.get_func(arg0) == OPS.neg:
+            stats.abs_of_square += 1
+            return self.newop(OPS.square, self.getarg(arg0, 0))
         return LEAVE_AS_IS
 
     def opt_neg(self, arg0, arg0minimum, arg0maximum):
