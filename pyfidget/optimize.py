@@ -184,6 +184,9 @@ class Optimizer(object):
     def opt_add(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0minimum == arg0maximum == 0:
             return arg1
+        #if arg0 is arg1:
+        #    arg = self.newconst(2.0)
+        #    return ...
         return LEAVE_AS_IS
 
     def opt_sub(self, name, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):

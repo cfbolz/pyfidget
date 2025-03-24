@@ -56,6 +56,16 @@ out add x zero
     check_optimize(ops, 0.0, 100.0, -1000, 1000, -1000, 1000, """\
 x var-x""")
 
+#def test_optimize_add_same():
+#    ops = parse("""
+#x var-x
+#out add x x
+#""")
+#    check_optimize(ops, 0.0, 100.0, -1000, 1000, -1000, 1000, """\
+#x var-x
+#c2 const 2.0
+#out mul c2""")
+
 def test_optimize_sub():
     ops = parse("""
 zero const 0.0
