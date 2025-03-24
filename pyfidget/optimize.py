@@ -12,13 +12,18 @@ LEAVE_AS_IS = sys.maxint
 def optimize(program, a, b, c, d, e, f):
     opt = Optimizer(program)
     opt.optimize(a, b, c, d, e, f)
-    result = opt.opreplacements[program.num_operations() - 1]
+    resindex = program.num_operations() - 1
+    result = opt.opreplacements[resindex]
     resultops = opt.resultops
+    minimum = opt.intervalframe.minvalues[resindex]
+    maximum = opt.intervalframe.maxvalues[resindex]
+    if minimum >= 0.0 or maximum < 0:
+        return None, minimum, maximum
     res = dce(resultops, result)
     #if not objectmodel.we_are_translated():
     #    print("length before", program.num_operations(), "len after", res.num_operations())
     #    print(res)
-    return res
+    return res, minimum, maximum
 
 @jit.dont_look_inside
 def opt_program(*args):
@@ -128,6 +133,8 @@ class Optimizer(object):
             if newop == LEAVE_AS_IS:
                 arg0, arg1 = program.get_args(index)
                 newop = self.resultops.add_op(func, self.get_replacement(arg0), self.get_replacement(arg1))
+            if not objectmodel.we_are_translated():
+                print(program.op_to_str(index), "-->\t", self.resultops.op_to_str(newop), "\t", self.intervalframe.minvalues[index], self.intervalframe.maxvalues[index])
             self.opreplacements[index] = newop
 
     def cse(self, op, func):

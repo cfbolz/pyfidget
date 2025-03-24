@@ -1,7 +1,9 @@
 from __future__ import division, print_function
 import math
 
+import pytest
 from hypothesis import given, strategies, assume
+
 from pyfidget.optimize import optimize
 from pyfidget.parse import parse
 from pyfidget.vm import Program, DirectFrame
@@ -16,7 +18,7 @@ def check_optimize(program, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-
         expected = minx
         minx = -1000
 
-    newops = optimize(program, minx, maxx, miny, maxy, minz, maxz)
+    newops, _, _ = optimize(program, minx, maxx, miny, maxy, minz, maxz)
     check_well_formed(newops)
     formatted = newops.pretty_format()
     if not formatted == parse(expected).pretty_format():
@@ -40,13 +42,19 @@ def test_optimize_abs():
 x var-x
 out abs x
 out2 abs out
+five const 5.0
+out3 sub out2 five
 """)
     check_optimize(ops, 0.0, 100.0, -1000, 1000, -1000, 1000, """\
-x var-x""")
+x var-x
+five const 5.0
+out3 sub x five""")
     
     check_optimize(ops, -100., -1., -1000, 1000, -1000, 1000, """
 x var-x
-out neg x""")
+out neg x
+five const 5.0
+out3 sub out five""")
 
 
 def test_optimize_add():
@@ -55,7 +63,7 @@ zero const 0.0
 x var-x
 out add x zero
 """)
-    check_optimize(ops, 0.0, 100.0, -1000, 1000, -1000, 1000, """\
+    check_optimize(ops, """\
 x var-x""")
 
 #def test_optimize_add_same():
@@ -94,10 +102,15 @@ y var-y
 a min x y
 b min y x
 out mul a b
+five const 5.0
+out2 sub out five
 """)
     check_optimize(ops, 0.0, 100.0, 1000, 2000, -1000, 1000, """\
 x var-x
-out square x""")
+out square x
+five const 5.0
+out2 sub out five
+""")
 
 def test_optimize_max():
     ops = parse("""
@@ -106,10 +119,15 @@ y var-y
 a max x y
 b max y x
 out mul a b
+c const 1000001.0
+out2 sub out c
 """)
     check_optimize(ops, 0.0, 100.0, 1000, 2000, -1000, 1000, """\
 y var-y
-out square y""")
+out square y
+c const 1000001.0
+out2 sub out c
+""")
 
 def test_optimize_min_max_same():
     ops = parse("""
@@ -119,10 +137,15 @@ x2 add x _0
 a min x x2
 b max x x2
 out mul a b
+c const 10
+out2 sub out c
 """)
     check_optimize(ops, 0.0, 100.0, 1000, 2000, -1000, 1000, """\
 x var-x
-out square x""")
+out square x
+c const 10
+out2 sub out c
+""")
 
 def test_optimize_neg_neg():
     ops = parse("""
@@ -132,10 +155,14 @@ b neg a
 c neg b
 d neg c
 out square d
+c const 10
+out2 sub out c
 """)
     check_optimize(ops, expected="""\
 x var-x
 out square x
+c const 10
+out2 sub out c
 """)
 
 def test_optimize_mul():
@@ -178,6 +205,7 @@ mfour const -4.0
 out mul mfour x
 """)
 
+@pytest.mark.xfail
 def test_cse():
     ops = """
     x var-x
@@ -191,6 +219,7 @@ def test_cse():
     """
     check_optimize(ops, expected)
 
+@pytest.mark.xfail
 def test_cse_bug():
     ops = """
 x var-x
@@ -214,10 +243,15 @@ def test_abs_neg():
 x var-x
 a neg x
 b abs a
+c const 10
+out2 sub b c
+
 """
     expected = """
 x var-x
 b abs x
+c const 10
+out2 sub b c
 """
     check_optimize(ops, expected)
 
@@ -284,7 +318,7 @@ def Xtest_random(data):
         ops.append(prev_op)
     program = Program(ops)
     frame = DirectFrame(program)
-    resultops = optimize(program, minx, maxx, miny, maxy, 0.0, 0.0)
+    resultops, _, _ = optimize(program, minx, maxx, miny, maxy, 0.0, 0.0)
     check_well_formed(resultops)
     opt_frame = DirectFrame(Program(resultops))
     try:

@@ -68,6 +68,9 @@ class ProgramBuilder(object):
     @objectmodel.always_inline
     def get_args(self, index):
         return self.arguments[index*2], self.arguments[index*2 + 1]
+
+    def op_to_str(self, i):
+        return self.finish().op_to_str(i)
     
     def __str__(self):
         return self.finish().pretty_format()
@@ -172,6 +175,7 @@ class DirectFrame(object):
 
     def __init__(self, program):
         self.program = program
+        self.floatvalues = None
 
     def run_floats(self, x, y, z):
         self.setxyz(x, y, z)
@@ -179,6 +183,8 @@ class DirectFrame(object):
         return self.floatvalues[self.program.size_storage() - 1]
 
     def setup(self, length):
+        if self.floatvalues and len(self.floatvalues) == length and not jit.we_are_jitted():
+            return
         self.floatvalues = [0.0] * length
 
     def setxyz(self, x, y, z):
@@ -441,11 +447,7 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
     b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
     c = miny + (maxy - miny) * starty / (height - 1)
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
-    frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
-    if frame.program.num_operations() < 500:
-        driver_octree_optimize.jit_merge_point(program=frame.program)
-    jit.promote(frame.program)
-    minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)
+    newprogram, minimum, maximum = opt_program(frame.program, a, b, c, d, 0.0, 0.0)
     #print("  " * level, x, y, res)
     if maximum < 0:
         # completely inside
@@ -454,6 +456,11 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
     elif minimum > 0:
         # completely outside, no need to change color
         return
+    assert newprogram is not None
+    frame = IntervalFrame(newprogram)
+    if frame.program.num_operations() < 500:
+        driver_octree_optimize.jit_merge_point(program=frame.program)
+    jit.promote(frame.program)
 
     # check whether area is small enough to switch to naive evaluation
     if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
@@ -486,12 +493,10 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
     before_opt = frame.program.num_operations()
     t1 = time.time()
-    frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
+    newprogram, minimum, maximum = opt_program(frame.program, a, b, c, d, 0.0, 0.0)
     t2 = time.time()
-    minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)
     label = node_label(startx, stopx, starty, stopy)
     descr = ['%s-%s, %s-%s' % (startx, stopx, starty, stopy),
-             'size program %s (before opt: %s)' % (frame.program.num_operations(), before_opt),
              'time opt %s' % (t2 - t1)]
     if maximum < 0:
         descr.append('fully inside')
@@ -502,10 +507,11 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
         descr.append('fully outside')
         output.append('%s [label="%s", fillcolor=green, shape=box];' % (label, '\\l'.join(descr)))
         return
+    descr.append('size program %s (before opt: %s)' % (frame.program.num_operations(), before_opt))
 
     # check whether area is small enough to switch to naive evaluation
     if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
-        frame = DirectFrame(frame.program)
+        frame = DirectFrame(newprogram)
         direct_label = node_label(startx, stopx, starty, stopy, 'd')
         t1 = time.time()
         render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
@@ -514,6 +520,7 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
         output.append('%s [fillcolor=yellow, label="%s", shape=box];' % (
             label, '\\l'.join(descr)))
         return
+    frame = IntervalFrame(newprogram)
     midx = (startx + stopx) // 2
     midy = (starty + stopy) // 2
     for new_startx, new_stopx in [(startx, midx), (midx, stopx)]:
