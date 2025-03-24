@@ -13,9 +13,7 @@ def optimize(program, a, b, c, d, e, f):
     opt.optimize(a, b, c, d, e, f)
     result = opt.opreplacements[program.num_operations() - 1]
     resultops = opt.resultops
-    if result != resultops.num_operations() - 1:
-        import pdb;pdb.set_trace()
-    res = dce(resultops)
+    res = dce(resultops, result)
     if not objectmodel.we_are_translated():
         print("length before", program.num_operations(), "len after", res.num_operations())
         print(res)
@@ -47,6 +45,9 @@ class Optimizer(object):
     def get_replacement(self, op):
         return self.opreplacements[op]
 
+    def getarg(self, op, index):
+        return self.resultops.get_args(op)[index]
+
     def newop(self, func, arg0=0, arg1=0):
         return self.resultops.add_op(func, arg0, arg1)
 
@@ -73,23 +74,25 @@ class Optimizer(object):
                 # const-folding
                 if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
                     newop = self.newconst(minimum)
-                else:
-                    # do CSE
-                    newop = self.cse(index)
+            if newop == LEAVE_AS_IS:
+                newop = self.cse(index, func)
             if newop == LEAVE_AS_IS:
                 arg0, arg1 = program.get_args(index)
                 newop = self.resultops.add_op(func, self.get_replacement(arg0), self.get_replacement(arg1))
             self.opreplacements[index] = newop
 
-    def cse(self, op):
-        return LEAVE_AS_IS
-        arg0 = self.getarg(op, 0)
-        arg1 = self.getarg(op, 1)
-        for index in range(len(self.resultops) - 1, max(-1, len(self.resultops) - WINDOW_SIZE), -1):
-            oldop = self.resultops[index]
-            if isinstance(oldop, Operation) and oldop.func == op.func and len(oldop.args) == 2:
-                if oldop.args[0] is arg0 and oldop.args[1] is arg1:
-                    return oldop
+    def cse(self, op, func):
+        arg0, arg1 = self.program.get_args(op)
+        arg0 = self.get_replacement(arg0)
+        arg1 = self.get_replacement(arg1)
+        num_resultops = self.resultops.num_operations()
+        for index in range(num_resultops - 1, max(-1, num_resultops - WINDOW_SIZE), -1):
+            other_func = self.resultops.get_func(index)
+            if other_func != func:
+                continue
+            other_arg0, other_arg1 = self.resultops.get_args(index)
+            if other_arg0 == arg0 and other_arg1 == arg1:
+                return index
         return LEAVE_AS_IS
 
     def _optimize_op(self, op):
@@ -132,13 +135,11 @@ class Optimizer(object):
         if arg0maximum < 0:
             return self.defer1(OPS.neg, arg0, arg0minimum, arg0maximum)
         if self.resultops.get_func(arg0) == OPS.neg:
-            import pdb;pdb.set_trace()
             return self.newop(OPS.abs, self.getarg(arg0, 0))
         return LEAVE_AS_IS
 
     def opt_neg(self, arg0, arg0minimum, arg0maximum):
         if self.resultops.get_func(arg0) == OPS.neg:
-            import pdb;pdb.set_trace()
             return self.getarg(arg0, 0)
         return LEAVE_AS_IS
 
@@ -202,12 +203,12 @@ class Optimizer(object):
         return LEAVE_AS_IS
 
 
-def dce(ops):
+def dce(ops, final_op):
     new_positions = [-1] * ops.num_operations()
-    new_positions[-1] = ops.num_operations() - 1
+    new_positions[final_op] = 0
     alive_ops = 0
     alive_consts = 0
-    for index in range(len(new_positions) - 1, -1, -1):
+    for index in range(final_op, -1, -1):
         if new_positions[index] < 0:
             continue
         alive_ops += 1
@@ -215,6 +216,7 @@ def dce(ops):
         func = ops.get_func(index)
         if func == OPS.const:
             alive_consts += 1
+            continue
         for arg in args[:OPS.num_args(func)]:
             if new_positions[arg] == -1:
                 new_positions[arg] = 0
@@ -222,15 +224,25 @@ def dce(ops):
     args = [0] * (alive_ops * 2)
     consts = [0.0] * alive_consts
     index = 0
+
     output = ProgramBuilder()
-    for op in ops:
-        if new_positions[index] < 0:
-            continue
-        func = ops.get_func(op)
-        arg0, arg1 = ops.get_args(op)
-        if func == OPS.const:
-            newop = output.add_const(ops.consts[arg0])
-        else:
-            newop = output.add_op(func, new_positions[arg0], new_positions[arg1])
-        new_positions[index] = newop
+    for op in range(final_op + 1):
+        if new_positions[index] >= 0:
+            func = ops.get_func(op)
+            arg0, arg1 = ops.get_args(op)
+            if func == OPS.const:
+                newop = output.add_const(ops.consts[arg0])
+            else:
+                numargs = OPS.num_args(func)
+                if numargs == 0:
+                    arg0 = arg1 = 0
+                elif numargs == 1:
+                    arg0 = new_positions[arg0]
+                    arg1 = 0
+                elif numargs == 2:
+                    arg0 = new_positions[arg0]
+                    arg1 = new_positions[arg1]
+                newop = output.add_op(func, arg0, arg1)
+            new_positions[index] = newop
+        index += 1
     return output.finish()
