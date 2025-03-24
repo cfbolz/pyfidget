@@ -2,6 +2,7 @@ import time
 from pyfidget.vm import render_image_naive, render_image_octree, write_ppm, DirectFrame, IntervalFrame, Program, \
         render_image_octree_optimize, render_image_octree_optimize_graphviz
 from pyfidget.parse import parse
+from pyfidget.optimize import stats
 
 from rpython.rlib import jit
 from rpython.rlib.objectmodel import we_are_translated
@@ -67,6 +68,7 @@ def main(argv):
         output = render_image_octree_optimize_graphviz(frame, length, length, *args)
         with open(argv[2], 'w') as f:
             f.write('\n'.join(output))
+        stats.print_stats()
         return 0
 
     if data is not None:

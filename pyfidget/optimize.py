@@ -1,3 +1,4 @@
+from __future__ import print_function
 import math
 import sys
 
@@ -33,6 +34,51 @@ def symmetric(func):
 
 WINDOW_SIZE = 100
 
+class Stats(object):
+    total_ops = 0
+    dedup_const_worked = 0
+    cse_worked = 0
+    constfold = 0
+    abs_pos = 0
+    abs_neg = 0
+    abs_of_neg = 0
+    neg_neg = 0
+    add0 = 0
+    sub_self = 0
+    zero_sub = 0
+    sub_zero = 0
+    min_range = 0
+    min_self = 0
+    max_range = 0
+    max_self = 0
+    mul_self = 0
+    mul0 = 0
+    mul1 = 0
+    mul_neg1 = 0
+
+    def print_stats(self):
+        print('total_ops', self.total_ops)
+        print('dedup_const_worked', self.dedup_const_worked)
+        print('cse_worked', self.cse_worked)
+        print('constfold', self.constfold)
+        print('abs_pos', self.abs_pos)
+        print('abs_neg', self.abs_neg)
+        print('abs_of_neg', self.abs_of_neg)
+        print('neg_neg', self.neg_neg)
+        print('add0', self.add0)
+        print('sub_self', self.sub_self)
+        print('zero_sub', self.zero_sub)
+        print('sub_zero', self.sub_zero)
+        print('min_range', self.min_range)
+        print('min_self', self.min_self)
+        print('max_range', self.max_range)
+        print('max_self', self.max_self)
+        print('mul_self', self.mul_self)
+        print('mul0', self.mul0)
+        print('mu1', self.mul1)
+        print('mul_neg1', self.mul_neg1)
+
+stats = Stats()
 
 class Optimizer(object):
     def __init__(self, program):
@@ -65,6 +111,7 @@ class Optimizer(object):
         self.intervalframe.setxyz(a, b, c, d, e, f)
 
         for index in range(program.num_operations()):
+            stats.total_ops += 1
             self.intervalframe._run_op(index)
             func = program.get_func(index)
             newop = self._optimize_op(index)
@@ -73,6 +120,7 @@ class Optimizer(object):
                 maximum = self.intervalframe.maxvalues[index]
                 # const-folding
                 if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
+                    stats.constfold += 1
                     newop = self.newconst(minimum)
             if newop == LEAVE_AS_IS:
                 newop = self.cse(index, func)
@@ -92,6 +140,7 @@ class Optimizer(object):
                 continue
             other_arg0, other_arg1 = self.resultops.get_args(index)
             if other_arg0 == arg0 and other_arg1 == arg1:
+                stats.cse_worked += 1
                 return index
         return LEAVE_AS_IS
 
@@ -131,21 +180,26 @@ class Optimizer(object):
 
     def opt_abs(self, arg0, arg0minimum, arg0maximum):
         if arg0minimum >= 0:
+            stats.abs_pos += 1
             return arg0
         if arg0maximum < 0:
+            stats.abs_neg += 1
             return self.defer1(OPS.neg, arg0, arg0minimum, arg0maximum)
         if self.resultops.get_func(arg0) == OPS.neg:
+            stats.abs_of_neg += 1
             return self.newop(OPS.abs, self.getarg(arg0, 0))
         return LEAVE_AS_IS
 
     def opt_neg(self, arg0, arg0minimum, arg0maximum):
         if self.resultops.get_func(arg0) == OPS.neg:
+            stats.neg_neg += 1
             return self.getarg(arg0, 0)
         return LEAVE_AS_IS
 
     @symmetric
     def opt_add(self, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0minimum == arg0maximum == 0:
+            stats.add0 += 1
             return arg1
         #if arg0 is arg1:
         #    arg = self.newconst(2.0)
@@ -154,38 +208,49 @@ class Optimizer(object):
 
     def opt_sub(self, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0 is arg1:
+            stats.sub_self += 1
             return self.newconst(0.0)
         if arg0minimum == arg0maximum == 0:
+            stats.zero_sub += 1
             return self.defer1(OPS.neg, arg1, arg1minimum, arg1maximum)
         if arg1minimum == arg1maximum == 0:
+            stats.sub_zero += 1
             return arg0
         return LEAVE_AS_IS
 
     @symmetric
     def opt_min(self, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0maximum < arg1minimum:
+            stats.min_range += 1
             return arg0
         if arg0 is arg1:
+            stats.min_self += 1
             return arg0
         return LEAVE_AS_IS
 
     @symmetric
     def opt_max(self, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0minimum > arg1maximum:
+            stats.max_range += 1
             return arg0
         if arg0 is arg1:
+            stats.max_self += 1
             return arg0
         return LEAVE_AS_IS
 
     @symmetric
     def opt_mul(self, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         if arg0 is arg1:
+            stats.mul_self += 1
             return self.defer1(OPS.square, arg0, arg0minimum, arg1maximum)
         if arg0minimum == arg0maximum == 0.0:
+            stats.mul0 += 1
             return self.newconst(0.0)
         if arg0minimum == arg0maximum == 1.0:
+            stats.mul1 += 1
             return arg1
         if arg0minimum == arg0maximum == -1.0:
+            stats.mul_neg1 += 1
             return self.defer1(OPS.neg, arg1, arg1minimum, arg1maximum)
         return LEAVE_AS_IS
 
