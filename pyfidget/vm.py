@@ -65,65 +65,132 @@ class Operation(Value):
     def _tostr(self):
         return "%s = %s %s" % (self.name, OPS.char_to_name(self.func), " ".join([arg.name for arg in self.args]))
 
+
+class ProgramBuilder(object):
+    def __init__(self):
+        self.funcs = []
+        self.arguments = []
+        self.consts = []
+        self.names = []
+
+    def add_const(self, const, name=None):
+        arg = len(self.consts)
+        self.consts.append(const)
+        return self.add_op(OPS.const, arg, name=name)
+
+    def add_op(self, func, arg0=0, arg1=0, name=None):
+        res = len(self.funcs)
+        assert isinstance(arg0, int)
+        assert isinstance(arg1, int)
+        self.funcs.append(func)
+        self.arguments.append(arg0)
+        self.arguments.append(arg1)
+        self.names.append(name)
+        return res
+
+    def finish(self):
+        return Program(self.funcs[:], self.arguments[:], self.consts[:])
+
+    def get_func(self, index):
+        return self.funcs[index]
+
+    def num_operations(self):
+        return len(self.funcs)
+
+    def get_func(self, index):
+        return self.funcs[index]
+    
+    @objectmodel.always_inline
+    def get_args(self, index):
+        return self.arguments[index*2], self.arguments[index*2 + 1]
+    
+    def __str__(self):
+        return self.finish().pretty_format()
+
+    def __iter__(self):
+        return iter(range(self.num_operations()))
+
+
 class Program(object):
-    _immutable_fields_ = ['operations[*]']
-    def __init__(self, operations):
-        self.operations = operations
-        for index, op in enumerate(operations):
-            op.index = index
+    def __init__(self, funcs, arguments, consts):
+        self.funcs = funcs
+        self.arguments = arguments
+        self.consts = consts
+    
+    def num_operations(self):
+        return len(self.funcs)
+
+    def size_storage(self):
+        return self.num_operations() # for now
+    
+    def get_func(self, index):
+        return self.funcs[index]
+    
+    @objectmodel.always_inline
+    def get_args(self, index):
+        return self.arguments[index*2], self.arguments[index*2 + 1]
+
+    def pretty_format(self):
+        result = []
+        for i in range(self.num_operations()):
+            func = OPS.char_to_name(self.get_func(i))
+            arg0, arg1 = self.get_args(i)
+            if func == "const":
+                result.append("_%x const %s" % (i, self.consts[arg0]))
+            else:
+                result.append("_%x %s _%x _%x" % (i, func, arg0, arg1))
+        return "\n".join(result)
+
+    def __str__(self):
+        return self.pretty_format()
+
+    def __iter__(self):
+        return iter(range(self.num_operations()))
 
 class Frame(object):
     @jit.unroll_safe
     def run(self):
         program = self.program
         jit.promote(program)
-        self.setup(len(program.operations))
-        for op in program.operations:
+        num_ops = program.num_operations()
+        self.setup(num_ops)
+        for op in range(num_ops):
             if jit.we_are_jitted():
                 jit.jit_debug(op.tostr())
             self._run_op(op)
     
     def _run_op(self, op):
-        if isinstance(op, Const):
-            res = self.make_constant(op.value, op.index)
-        elif isinstance(op, Operation):
-            if op.func == OPS.var_x:
-                self.get_x(op.index)
-            elif op.func == OPS.var_y:
-                self.get_y(op.index)
-            elif op.func == OPS.var_z:
-                self.get_z(op.index)
-            else:
-                arg0index = op.args[0].index
-                arg1index = arg0index
-                if len(op.args) == 2:
-                    arg1index = op.args[1].index
-                elif len(op.args) == 1:
-                    pass
-                else:
-                    raise ValueError("number of arguments not supported")
-                if op.func == OPS.add:
-                    self.add(arg0index, arg1index, op.index)
-                elif op.func == OPS.sub:
-                    self.sub(arg0index, arg1index, op.index)
-                elif op.func == OPS.mul:
-                    self.mul(arg0index, arg1index, op.index)
-                elif op.func == OPS.max:
-                    self.max(arg0index, arg1index, op.index)
-                elif op.func == OPS.min:
-                    self.min(arg0index, arg1index, op.index)
-                elif op.func == OPS.square:
-                    self.square(arg0index, op.index)
-                elif op.func == OPS.sqrt:
-                    self.sqrt(arg0index, op.index)
-                elif op.func == OPS.exp:
-                    self.exp(arg0index, op.index)
-                elif op.func == OPS.neg:
-                    self.neg(arg0index, op.index)
-                elif op.func == OPS.abs:
-                    self.abs(arg0index, op.index)
-                else:
-                    raise ValueError("Invalid operation: %s" % op)
+        program = self.program
+        func = program.get_func(op)
+        arg0, arg1 = program.get_args(op)
+        if func == OPS.const:
+            self.make_constant(program.consts[arg0], op)
+        elif func == OPS.var_x:
+            self.get_x(op)
+        elif func == OPS.var_y:
+            self.get_y(op)
+        elif func == OPS.var_z:
+            self.get_z(op)
+        elif func == OPS.add:
+            self.add(arg0, arg1, op)
+        elif func == OPS.sub:
+            self.sub(arg0, arg1, op)
+        elif func == OPS.mul:
+            self.mul(arg0, arg1, op)
+        elif func == OPS.max:
+            self.max(arg0, arg1, op)
+        elif func == OPS.min:
+            self.min(arg0, arg1, op)
+        elif func == OPS.square:
+            self.square(arg0, op)
+        elif func == OPS.sqrt:
+            self.sqrt(arg0, op)
+        elif func == OPS.exp:
+            self.exp(arg0, op)
+        elif func == OPS.neg:
+            self.neg(arg0, op)
+        elif func == OPS.abs:
+            self.abs(arg0, op)
         else:
             raise ValueError("Invalid operation: %s" % op)
 
@@ -136,7 +203,7 @@ class DirectFrame(object):
     def run_floats(self, x, y, z):
         self.setxyz(x, y, z)
         self.run()
-        return self.floatvalues[len(self.program.operations) - 1]
+        return self.floatvalues[self.program.size_storage() - 1]
 
     def setup(self, length):
         self.floatvalues = [0.0] * length
@@ -214,7 +281,7 @@ class IntervalFrame(object):
     def run_intervals(self, minx, maxx, miny, maxy, minz, maxz):
         self.setxyz(minx, maxx, miny, maxy, minz, maxz)
         self.run()
-        index = len(self.program.operations) - 1
+        index = self.program.size_storage() - 1
         return self.minvalues[index], self.maxvalues[index]
 
     def setup(self, length):
@@ -305,16 +372,6 @@ class IntervalFrame(object):
         self.minvalues[resindex] = math.exp(self.minvalues[arg0index])
         self.maxvalues[resindex] = math.exp(self.maxvalues[arg0index])
 
-
-def pretty_format(operations):
-    result = []
-    for op in operations:
-        if isinstance(op, Const):
-            result.append("%s const %s" % (op.name, op.value))
-        elif isinstance(op, Operation):
-            args = " ".join(arg.name for arg in op.args)
-            result.append("%s %s%s%s" % (op.name, OPS.char_to_name(op.func), " " if args else "", args))
-    return "\n".join(result)
 
 def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
     minx = float(minx)
@@ -412,7 +469,7 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
     c = miny + (maxy - miny) * starty / (height - 1)
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
     frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
-    if len(frame.program.operations) < 500:
+    if frame.num_operations() < 500:
         driver_octree_optimize.jit_merge_point(program=frame.program)
     jit.promote(frame.program)
     minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)
@@ -454,18 +511,18 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
     b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
     c = miny + (maxy - miny) * starty / (height - 1)
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
-    before_opt = len(frame.program.operations)
+    before_opt = frame.program.num_operations()
     t1 = time.time()
     frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
     t2 = time.time()
     minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)
     label = node_label(startx, stopx, starty, stopy)
     descr = ['%s-%s, %s-%s' % (startx, stopx, starty, stopy),
-             'size program %s (before opt: %s)' % (len(frame.program.operations), before_opt),
+             'size program %s (before opt: %s)' % (frame.program.num_operations(), before_opt),
              'time opt %s' % (t2 - t1)]
     if maximum < 0:
         descr.append('fully inside')
-        output.append('%s [label="%s", fillcolor=red, shape=box];' % (label, '\\l'.join(descr), len(frame.program.operations)))
+        output.append('%s [label="%s", fillcolor=red, shape=box];' % (label, '\\l'.join(descr), frame.program.num_operations()))
         _fill_black(width, height, result, startx, stopx, starty, stopy)
         return
     elif minimum > 0:

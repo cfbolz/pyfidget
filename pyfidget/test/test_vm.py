@@ -7,8 +7,7 @@ from pyfidget.parse import parse
 def quarter_frame(cls=DirectFrame):
     with open("quarter.vm") as f:
         code = f.read()
-    operations = parse(code)
-    program = Program(operations)
+    program = parse(code)
     return cls(program)
 
 def test_quarter():
