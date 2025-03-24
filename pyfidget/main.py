@@ -1,6 +1,6 @@
 import time
 from pyfidget.vm import render_image_naive, render_image_octree, write_ppm, DirectFrame, IntervalFrame, Program, \
-        render_image_octree_optimize
+        render_image_octree_optimize, render_image_octree_optimize_graphviz
 from pyfidget.parse import parse
 
 from rpython.rlib import jit
@@ -33,9 +33,9 @@ def main(argv):
     else:
         length = 1024
     t1 = time.time()
-    args = -2., 2., -2., 2.
+    args = -1., 1., -1., 1.
     if we_are_translated():
-        args = NonConstant(-2.), NonConstant(2.), NonConstant(-2.), NonConstant(2.)
+        args = NonConstant(-1.), NonConstant(1.), NonConstant(-1.), NonConstant(1.)
     data = None
     if phase == 0 or phase == 1:
         frame = DirectFrame(Program(operations))
@@ -54,7 +54,23 @@ def main(argv):
         data = render_image_octree_optimize(frame, length, length, *args)
         t2 = time.time()
         print("time, octree with optimizer: %s" % (t2 - t1))
-    write_ppm(data, argv[2], length, length)
+    if phase == 4:
+        t1 = time.time()
+        frame = IntervalFrame(Program(operations))
+        for i in range(500):
+            data = render_image_octree_optimize(frame, length, length, *args)
+        t2 = time.time()
+        print("time, octree with optimizer, 500 times, average: %s" % ((t2 - t1) / 500.))
+        return 0
+    if phase == 5:
+        frame = IntervalFrame(Program(operations))
+        output = render_image_octree_optimize_graphviz(frame, length, length, *args)
+        with open(argv[2], 'w') as f:
+            f.write('\n'.join(output))
+        return 0
+
+    if data is not None:
+        write_ppm(data, argv[2], length, length)
     return 0
 
 if __name__ == "__main__":

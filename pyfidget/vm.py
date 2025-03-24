@@ -1,4 +1,5 @@
 from __future__ import division, print_function
+import time
 import math
 from rpython.rlib import jit, objectmodel
 
@@ -360,7 +361,7 @@ def render_image_octree(frame, width, height, minx, maxx, miny, maxy):
     render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
     return result
 
-LIMIT = 8
+LIMIT = 16
 
 def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept
@@ -378,6 +379,7 @@ def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result
     if maximum < 0:
         # completely inside
         _fill_black(width, height, result, startx, stopx, starty, stopy)
+        return
     elif minimum > 0:
         # completely outside, no need to change color
         return
@@ -397,14 +399,9 @@ def render_image_octree_optimize(frame, width, height, minx, maxx, miny, maxy):
     render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
     return result
 
-LIMIT = 8
-
 def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept
     from pyfidget.optimize import opt_program
-    if len(frame.program.operations) < 500:
-        driver_octree_optimize.jit_merge_point(program=frame.program)
-    jit.promote(frame.program)
     # use intervals to check for uniform color
 
     #print("==" * level, startx, stopx, starty, stopy)
@@ -412,15 +409,19 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
     b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
     c = miny + (maxy - miny) * starty / (height - 1)
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
+    frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
+    if len(frame.program.operations) < 500:
+        driver_octree_optimize.jit_merge_point(program=frame.program)
+    jit.promote(frame.program)
     minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)
     #print("  " * level, x, y, res)
     if maximum < 0:
         # completely inside
         _fill_black(width, height, result, startx, stopx, starty, stopy)
+        return
     elif minimum > 0:
         # completely outside, no need to change color
         return
-    frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
 
     # check whether area is small enough to switch to naive evaluation
     if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
@@ -434,6 +435,63 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
             if not objectmodel.we_are_translated():
                 print("====================================", level, new_startx, new_stopx, new_starty, new_stopy)
             render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
+
+def render_image_octree_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy):
+    result = [' '] * (width * height)
+    output = ['digraph G {']
+    render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height, output)
+    output.append('}')
+    return output
+
+def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, output, level=0):
+    from pyfidget.optimize import opt_program
+    def node_label(a, b, c, d, prefix='l'):
+        return "%s_%s_%s_%s_%s" % (prefix, a, b, c, d)
+    tt1 = time.time()
+    a = minx + (maxx - minx) * startx / (width - 1)
+    b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
+    c = miny + (maxy - miny) * starty / (height - 1)
+    d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
+    before_opt = len(frame.program.operations)
+    t1 = time.time()
+    frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
+    t2 = time.time()
+    minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)
+    label = node_label(startx, stopx, starty, stopy)
+    descr = ['%s-%s, %s-%s' % (startx, stopx, starty, stopy),
+             'size program %s (before opt: %s)' % (len(frame.program.operations), before_opt),
+             'time opt %s' % (t2 - t1)]
+    if maximum < 0:
+        descr.append('fully inside')
+        output.append('%s [label="%s", fillcolor=red, shape=box];' % (label, '\\l'.join(descr), len(frame.program.operations)))
+        _fill_black(width, height, result, startx, stopx, starty, stopy)
+        return
+    elif minimum > 0:
+        descr.append('fully outside')
+        output.append('%s [label="%s", fillcolor=green, shape=box];' % (label, '\\l'.join(descr)))
+        return
+
+    # check whether area is small enough to switch to naive evaluation
+    if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
+        frame = DirectFrame(frame.program)
+        direct_label = node_label(startx, stopx, starty, stopy, 'd')
+        t1 = time.time()
+        render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
+        t2 = time.time()
+        descr.append('time native: %s' % (t2 - t1))
+        output.append('%s [fillcolor=yellow, label="%s", shape=box];' % (
+            label, '\\l'.join(descr)))
+        return
+    midx = (startx + stopx) // 2
+    midy = (starty + stopy) // 2
+    for new_startx, new_stopx in [(startx, midx), (midx, stopx)]:
+        for new_starty, new_stopy in [(starty, midy), (midy, stopy)]:
+            sublabel = node_label(new_startx, new_stopx, new_starty, new_stopy)
+            output.append("%s -> %s" % (label, sublabel))
+            render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, output, level+1)
+    tt2 = time.time()
+    descr.append('total time %s' % (tt2 - tt1))
+    output.append('%s [label="%s", shape=box];' % (label, '\\l'.join(descr)))
 
 def render_image_naive_optimize_check(frame, width, height, minx, maxx, miny, maxy):
     from pyfidget.optimize import opt_program
