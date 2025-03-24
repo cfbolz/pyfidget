@@ -32,39 +32,6 @@ driver_render_part = jit.JitDriver(
         is_recursive=True)
 
 
-class Value(object):
-    _immutable_fields_ = ['index', 'name', 'func', 'args[*]']
-    index = -1
-    name = None
-
-    @jit.elidable
-    def tostr(self):
-        return self._tostr()
-
-class Const(Value):
-    _immutable_fields_ = ['value']
-    func = OPS.get('const')
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
-        self.args = []
-
-    def _tostr(self):
-        return "%s = const %s" % (self.name, self.value)
-
-class Operation(Value):
-    def __init__(self, name, func, args):
-        assert len(func) == 1
-        self.name = name
-        self.func = func
-        self.args = args
-
-    def __repr__(self):
-        return "Operation(%r, %r, %r)" % (self.name, OPS.char_to_name(self.func), self.args)
-
-    def _tostr(self):
-        return "%s = %s %s" % (self.name, OPS.char_to_name(self.func), " ".join([arg.name for arg in self.args]))
-
 
 class ProgramBuilder(object):
     def __init__(self):
@@ -133,13 +100,21 @@ class Program(object):
     def pretty_format(self):
         result = []
         for i in range(self.num_operations()):
-            func = OPS.char_to_name(self.get_func(i))
-            arg0, arg1 = self.get_args(i)
-            if func == "const":
-                result.append("_%x const %s" % (i, self.consts[arg0]))
-            else:
-                result.append("_%x %s _%x _%x" % (i, func, arg0, arg1))
+            self._op_to_str(i, result)
         return "\n".join(result)
+
+    def op_to_str(self, i):
+        r = []
+        self._op_to_str(i, r)
+        return r[0]
+
+    def _op_to_str(self, i, result):
+        func = OPS.char_to_name(self.get_func(i))
+        arg0, arg1 = self.get_args(i)
+        if func == "const":
+            result.append("_%x const %s" % (i, self.consts[arg0]))
+        else:
+            result.append("_%x %s _%x _%x" % (i, func, arg0, arg1))
 
     def __str__(self):
         return self.pretty_format()
@@ -156,7 +131,7 @@ class Frame(object):
         self.setup(num_ops)
         for op in range(num_ops):
             if jit.we_are_jitted():
-                jit.jit_debug(op.tostr())
+                jit.jit_debug(program.op_to_str(op))
             self._run_op(op)
     
     def _run_op(self, op):
@@ -469,7 +444,7 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
     c = miny + (maxy - miny) * starty / (height - 1)
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
     frame = IntervalFrame(opt_program(frame.program, a, b, c, d, 0.0, 0.0))
-    if frame.num_operations() < 500:
+    if frame.program.num_operations() < 500:
         driver_octree_optimize.jit_merge_point(program=frame.program)
     jit.promote(frame.program)
     minimum, maximum = frame.run_intervals(a, b, c, d, 0, 0)

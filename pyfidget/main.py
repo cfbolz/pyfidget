@@ -38,32 +38,32 @@ def main(argv):
         args = NonConstant(-1.), NonConstant(1.), NonConstant(-1.), NonConstant(1.)
     data = None
     if phase == 0 or phase == 1:
-        frame = DirectFrame(Program(operations))
+        frame = DirectFrame(operations)
         data = render_image_naive(frame, length // 2, length // 2, *args)
         t2 = time.time()
         print("time, naive: %s (scaled)" % ((t2 - t1) * 4))
     if phase == 0 or phase == 2:
         t1 = time.time()
-        frame = IntervalFrame(Program(operations))
+        frame = IntervalFrame(operations)
         data = render_image_octree(frame, length, length, *args)
         t2 = time.time()
         print("time, octree: %s" % (t2 - t1))
     if phase == 0 or phase == 3:
         t1 = time.time()
-        frame = IntervalFrame(Program(operations))
+        frame = IntervalFrame(operations)
         data = render_image_octree_optimize(frame, length, length, *args)
         t2 = time.time()
         print("time, octree with optimizer: %s" % (t2 - t1))
     if phase == 4:
         t1 = time.time()
-        frame = IntervalFrame(Program(operations))
+        frame = IntervalFrame(operations)
         for i in range(500):
             data = render_image_octree_optimize(frame, length, length, *args)
         t2 = time.time()
         print("time, octree with optimizer, 500 times, average: %s" % ((t2 - t1) / 500.))
         return 0
     if phase == 5:
-        frame = IntervalFrame(Program(operations))
+        frame = IntervalFrame(operations)
         output = render_image_octree_optimize_graphviz(frame, length, length, *args)
         with open(argv[2], 'w') as f:
             f.write('\n'.join(output))

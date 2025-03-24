@@ -204,6 +204,9 @@ class Optimizer(object):
 
 
 def dce(ops, final_op):
+    def mark_alive(new_positions, arg):
+        if new_positions[arg] == -1:
+            new_positions[arg] = 0
     new_positions = [-1] * ops.num_operations()
     new_positions[final_op] = 0
     alive_ops = 0
@@ -217,9 +220,16 @@ def dce(ops, final_op):
         if func == OPS.const:
             alive_consts += 1
             continue
-        for arg in args[:OPS.num_args(func)]:
-            if new_positions[arg] == -1:
-                new_positions[arg] = 0
+        numargs = OPS.num_args(func)
+        if numargs == 0:
+            pass
+        else:
+            arg0, arg1 = ops.get_args(index)
+            if numargs == 1:
+                mark_alive(new_positions, arg0)
+            else:
+                mark_alive(new_positions, arg0)
+                mark_alive(new_positions, arg1)
     funcs = ['\x00'] * alive_ops
     args = [0] * (alive_ops * 2)
     consts = [0.0] * alive_consts
