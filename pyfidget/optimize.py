@@ -61,6 +61,8 @@ class Stats(object):
     mul1 = 0
     mul_neg1 = 0
 
+    ops = [0] * 14
+
     def print_stats(self):
         print('total_ops', self.total_ops)
         print('dedup_const_worked', self.dedup_const_worked)
@@ -82,6 +84,11 @@ class Stats(object):
         print('mul0', self.mul0)
         print('mu1', self.mul1)
         print('mul_neg1', self.mul_neg1)
+        print()
+
+        for index, value in enumerate(self.ops):
+            print(OPS.char_to_name(chr(index)), value)
+
 
 stats = Stats()
 
@@ -120,6 +127,7 @@ class Optimizer(object):
             stats.total_ops += 1
             self.intervalframe._run_op(index)
             func = program.get_func(index)
+            stats.ops[ord(func)] += 1
             newop = self._optimize_op(index)
             if newop == LEAVE_AS_IS:
                 minimum = self.intervalframe.minvalues[index]
@@ -173,6 +181,13 @@ class Optimizer(object):
         arg1maximum = self.intervalframe.maxvalues[arg1]
         arg0 = self.get_replacement(arg0)
         arg1 = self.get_replacement(arg1)
+        #arg0arg0, arg0arg1 = self.resultops.get_args(arg0)
+        #arg1arg0, arg1arg1 = self.resultops.get_args(arg1)
+        #if (0 != arg0arg0 == arg1 or 0 != arg0arg1 == arg1):
+        #    if self.resultops.get_func(arg0) != OPS.const:
+        #        print(self.resultops.op_to_str(arg0))
+        #        print(self.resultops.op_to_str(arg1))
+        #        import pdb;pdb.set_trace()
         if func == OPS.abs:
             return self.opt_abs(arg0, arg0minimum, arg0maximum)
         if func == OPS.neg:
@@ -212,13 +227,13 @@ class Optimizer(object):
         if arg0minimum == arg0maximum == 0:
             stats.add0 += 1
             return arg1
-        #if arg0 is arg1:
+        #if arg0 == arg1:
         #    arg = self.newconst(2.0)
         #    return ...
         return LEAVE_AS_IS
 
     def opt_sub(self, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
-        if arg0 is arg1:
+        if arg0 == arg1:
             stats.sub_self += 1
             return self.newconst(0.0)
         if arg0minimum == arg0maximum == 0:
@@ -234,7 +249,7 @@ class Optimizer(object):
         if arg0maximum < arg1minimum:
             stats.min_range += 1
             return arg0
-        if arg0 is arg1:
+        if arg0 == arg1:
             stats.min_self += 1
             return arg0
         return LEAVE_AS_IS
@@ -244,14 +259,14 @@ class Optimizer(object):
         if arg0minimum > arg1maximum:
             stats.max_range += 1
             return arg0
-        if arg0 is arg1:
+        if arg0 == arg1:
             stats.max_self += 1
             return arg0
         return LEAVE_AS_IS
 
     @symmetric
     def opt_mul(self, arg0, arg1, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
-        if arg0 is arg1:
+        if arg0 == arg1:
             stats.mul_self += 1
             return self.defer1(OPS.square, arg0, arg0minimum, arg1maximum)
         if arg0minimum == arg0maximum == 0.0:
