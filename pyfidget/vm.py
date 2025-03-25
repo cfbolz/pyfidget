@@ -34,10 +34,14 @@ driver_render_part = jit.JitDriver(
 
 
 class ProgramBuilder(object):
-    def __init__(self, sizehint):
-        self.funcs = objectmodel.newlist_hint(sizehint)
-        self.arguments = objectmodel.newlist_hint(sizehint * 2)
-        self.consts = []
+    def __init__(self, sizehint, const_sizehint=-1):
+        self.funcs = ['\xff'] * sizehint
+        self.arguments = [0] * (sizehint * 2)
+        self.index = 0
+        if const_sizehint > 0:
+            self.consts = objectmodel.newlist_hint(const_sizehint)
+        else:
+            self.consts = []
 
     def add_const(self, const, name=None):
         arg = len(self.consts)
@@ -45,28 +49,37 @@ class ProgramBuilder(object):
         return self.add_op(OPS.const, arg, name=name)
 
     def add_op(self, func, arg0=0, arg1=0, name=None):
-        res = len(self.funcs)
         assert isinstance(arg0, int)
         assert isinstance(arg1, int)
-        self.funcs.append(func)
-        self.arguments.append(arg0)
-        self.arguments.append(arg1)
+        res = len(self.funcs)
+        res = self.index
+        self.index = res + 1
+        if res == len(self.funcs):
+            self.funcs = self.funcs + ['\xff'] * len(self.funcs)
+            self.arguments = self.arguments + [0] * len(self.arguments)
+        self.funcs[res] = func
+        self.arguments[2 * res + 0] = arg0
+        self.arguments[2 * res + 1] = arg1
         return res
 
     def finish(self):
-        return Program(self.funcs[:], self.arguments[:], self.consts[:])
+        res = Program(self.funcs[:self.index], self.arguments[:2*self.index], self.consts[:])
+        return res
 
     def get_func(self, index):
+        assert index < self.index
         return self.funcs[index]
 
     def num_operations(self):
-        return len(self.funcs)
+        return self.index
 
     def get_func(self, index):
+        assert index < self.index
         return self.funcs[index]
     
     @objectmodel.always_inline
     def get_args(self, index):
+        assert index < self.index
         return self.arguments[index*2], self.arguments[index*2 + 1]
 
     def op_to_str(self, i):

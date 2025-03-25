@@ -104,7 +104,7 @@ class Optimizer(object):
         self.opreplacements = [0] * num_operations
         self.minvalues = objectmodel.newlist_hint(num_operations)
         self.maxvalues = objectmodel.newlist_hint(num_operations)
-        self.seen_consts = {}
+        #self.seen_consts = {}
 
     def get_replacement(self, op):
         return self.opreplacements[op]
@@ -156,7 +156,6 @@ class Optimizer(object):
                 self.minvalues.append(minimum)
                 self.maxvalues.append(maximum)
             assert self.resultops.num_operations() == len(self.minvalues)
-
 
     def cse(self, op, func):
         return LEAVE_AS_IS
@@ -342,12 +341,9 @@ def dce(ops, final_op):
             else:
                 mark_alive(new_positions, arg0)
                 mark_alive(new_positions, arg1)
-    funcs = ['\x00'] * alive_ops
-    args = [0] * (alive_ops * 2)
-    consts = [0.0] * alive_consts
     index = 0
 
-    output = ProgramBuilder(alive_ops)
+    output = ProgramBuilder(alive_ops, alive_consts)
     for op in range(final_op + 1):
         if new_positions[index] >= 0:
             func = ops.get_func(op)
