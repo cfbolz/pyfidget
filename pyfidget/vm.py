@@ -318,65 +318,111 @@ class IntervalFrame(object):
         self.minvalues[resindex] = const
         self.maxvalues[resindex] = const
 
+    def _set(self, resindex, minvalue, maxvalue):
+        self.minvalues[resindex] = minvalue
+        self.maxvalues[resindex] = maxvalue
+
     def add(self, arg0index, arg1index, resindex):
-        self.minvalues[resindex] = self.minvalues[arg0index] + self.minvalues[arg1index]
-        self.maxvalues[resindex] = self.maxvalues[arg0index] + self.maxvalues[arg1index]
+        arg0minimum = self.minvalues[arg0index]
+        arg0maximum = self.maxvalues[arg0index]
+        arg1minimum = self.minvalues[arg1index]
+        arg1maximum = self.maxvalues[arg1index]
+        minvalue, maxvalue = self._add(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
+        self._set(resindex, minvalue, maxvalue)
+
+    def _add(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        return arg0minimum + arg1minimum, arg0maximum + arg1maximum
 
     def sub(self, arg0index, arg1index, resindex):
-        self.minvalues[resindex] = self.minvalues[arg0index] - self.maxvalues[arg1index]
-        self.maxvalues[resindex] = self.maxvalues[arg0index] - self.minvalues[arg1index]
+        arg0minimum = self.minvalues[arg0index]
+        arg0maximum = self.maxvalues[arg0index]
+        arg1minimum = self.minvalues[arg1index]
+        arg1maximum = self.maxvalues[arg1index]
+        minvalue, maxvalue = self._sub(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
+        self._set(resindex, minvalue, maxvalue)
+
+    def _sub(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        return arg0minimum - arg1maximum, arg0maximum - arg1minimum
 
     def mul(self, arg0index, arg1index, resindex):
-        min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
-        min1, max1 = self.minvalues[arg1index], self.maxvalues[arg1index]
-        self.minvalues[resindex] = min4(min0 * min1, min0 * max1, max0 * min1, max0 * max1)
-        self.maxvalues[resindex] = max4(min0 * min1, min0 * max1, max0 * min1, max0 * max1)
+        arg0minimum = self.minvalues[arg0index]
+        arg0maximum = self.maxvalues[arg0index]
+        arg1minimum = self.minvalues[arg1index]
+        arg1maximum = self.maxvalues[arg1index]
+        minvalue, maxvalue = self._mul(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
+        self._set(resindex, minvalue, maxvalue)
+
+    def _mul(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        return min4(arg0minimum * arg1minimum, arg0minimum * arg1maximum, arg0maximum * arg1minimum, arg0maximum * arg1maximum), \
+               max4(arg0minimum * arg1minimum, arg0minimum * arg1maximum, arg0maximum * arg1minimum, arg0maximum * arg1maximum)
 
     def max(self, arg0index, arg1index, resindex):
-        self.minvalues[resindex] = max(self.minvalues[arg0index], self.minvalues[arg1index])
-        self.maxvalues[resindex] = max(self.maxvalues[arg0index], self.maxvalues[arg1index])
+        arg0minimum = self.minvalues[arg0index]
+        arg0maximum = self.maxvalues[arg0index]
+        arg1minimum = self.minvalues[arg1index]
+        arg1maximum = self.maxvalues[arg1index]
+        minvalue, maxvalue = self._max(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
+        self._set(resindex, minvalue, maxvalue)
+
+    def _max(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        return max(arg0minimum, arg1minimum), max(arg0maximum, arg1maximum)
 
     def min(self, arg0index, arg1index, resindex):
-        self.minvalues[resindex] = min(self.minvalues[arg0index], self.minvalues[arg1index])
-        self.maxvalues[resindex] = min(self.maxvalues[arg0index], self.maxvalues[arg1index])
+        arg0minimum = self.minvalues[arg0index]
+        arg0maximum = self.maxvalues[arg0index]
+        arg1minimum = self.minvalues[arg1index]
+        arg1maximum = self.maxvalues[arg1index]
+        minvalue, maxvalue = self._min(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
+        self._set(resindex, minvalue, maxvalue)
+
+    def _min(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
+        return min(arg0minimum, arg1minimum), min(arg0maximum, arg1maximum)
 
     def square(self, arg0index, resindex):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
+        self._set(resindex, *self._square(min0, max0))
+
+    def _square(self, min0, max0):
         if min0 >= 0:
-            self.minvalues[resindex] = min0 * min0
-            self.maxvalues[resindex] = max0 * max0
+            return min0 * min0, max0 * max0
         elif max0 <= 0:
-            self.minvalues[resindex] = max0 * max0
-            self.maxvalues[resindex] = min0 * min0
+            return max0 * max0, min0 * min0
         else:
-            self.minvalues[resindex] = 0
-            self.maxvalues[resindex] = max(min0 * min0, max0 * max0)
+            return 0, max(min0 * min0, max0 * max0)
 
     def sqrt(self, arg0index, resindex):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
+        self._set(resindex, *self._sqrt(min0, max0))
+
+    def _sqrt(self, min0, max0):
         if max0 < 0:
-            min_res, max_res = float('nan'), float('nan')
-        else:
-            min_res, max_res = math.sqrt(max(0, min0)), math.sqrt(max0)
-        self.minvalues[resindex], self.maxvalues[resindex] = min_res, max_res
+            return float('nan'), float('nan')
+        return math.sqrt(max(0, min0)), math.sqrt(max0)
 
     def abs(self, arg0index, resindex):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
+        self._set(resindex, *self._abs(min0, max0))
+
+    def _abs(self, min0, max0):
         if max0 < 0:
-            min_res, max_res = -max0, -min0
+            return -max0, -min0
         elif min0 >= 0:
-            min_res, max_res = min0, max0
+            return min0, max0
         else:
-            min_res, max_res = 0, max(-min0, max0)
-        self.minvalues[resindex], self.maxvalues[resindex] = min_res, max_res
+            return 0, max(-min0, max0)
 
     def neg(self, arg0index, resindex):
-        self.minvalues[resindex] = -self.maxvalues[arg0index]
-        self.maxvalues[resindex] = -self.minvalues[arg0index]
+        self._set(resindex, *self._neg(self.minvalues[arg0index], self.maxvalues[arg0index]))
+
+    def _neg(self, min0, max0):
+        return -max0, -min0
 
     def exp(self, arg0index, resindex):
-        self.minvalues[resindex] = math.exp(self.minvalues[arg0index])
-        self.maxvalues[resindex] = math.exp(self.maxvalues[arg0index])
+        min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
+        self._set(resindex, *self._exp(min0, max0))
+
+    def _exp(self, min0, max0):
+        return math.exp(min0), math.exp(max0)
 
 
 def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
