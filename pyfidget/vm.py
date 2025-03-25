@@ -319,6 +319,8 @@ class IntervalFrame(object):
         self.maxvalues[resindex] = const
 
     def _set(self, resindex, minvalue, maxvalue):
+        if math.isinf(minvalue) or math.isinf(maxvalue):
+            minvalue = maxvalue = float('nan')
         self.minvalues[resindex] = minvalue
         self.maxvalues[resindex] = maxvalue
 

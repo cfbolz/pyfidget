@@ -7,6 +7,9 @@ from rpython.rlib import jit, objectmodel
 from pyfidget.operations import OPS
 from pyfidget.vm import ProgramBuilder, IntervalFrame
 
+def isfinite(val):
+    return not math.isinf(val) and not math.isnan(val)
+
 def optimize(program, a, b, c, d, e, f):
     opt = Optimizer.new(program)
     opt.optimize(a, b, c, d, e, f)
@@ -15,7 +18,7 @@ def optimize(program, a, b, c, d, e, f):
     resultops = opt.resultops
     minimum = opt.intervalframe.minvalues[result]
     maximum = opt.intervalframe.maxvalues[result]
-    if minimum > 0.0 or maximum <= 0:
+    if (isfinite(minimum) and isfinite(maximum)) and (minimum > 0.0 or maximum <= 0):
         opt.delete()
         return None, minimum, maximum
     result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues)

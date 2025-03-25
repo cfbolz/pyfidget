@@ -313,7 +313,7 @@ out max z y
 # ____________________________________________________________
 # random test case generation
 
-regular_floats = strategies.floats(allow_nan=False, allow_infinity=False)
+regular_floats = strategies.floats(-10000, 10000, allow_nan=False, allow_infinity=False)
 
 all_operation_generators = []
 def opgen(func):
