@@ -455,12 +455,12 @@ def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result
         for new_starty, new_stopy in [(starty, midy), (midy, stopy)]:
             render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
 
-def render_image_octree_optimize(frame, width, height, minx, maxx, miny, maxy):
+def render_image_octree_optimize(program, width, height, minx, maxx, miny, maxy):
     result = [' '] * (width * height)
-    render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
+    render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
     return result
 
-def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
+def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept
     from pyfidget.optimize import opt_program
     # use intervals to check for uniform color
@@ -470,8 +470,7 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
     b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
     c = miny + (maxy - miny) * starty / (height - 1)
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
-    newprogram, minimum, maximum = opt_program(frame.program, a, b, c, d, 0.0, 0.0)
-    #print("  " * level, x, y, res)
+    newprogram, minimum, maximum = opt_program(program, a, b, c, d, 0.0, 0.0)
     if maximum < 0:
         # completely inside
         _fill_black(width, height, result, startx, stopx, starty, stopy)
@@ -480,23 +479,21 @@ def render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, max
         # completely outside, no need to change color
         return
     assert newprogram is not None
-    frame = IntervalFrame(newprogram)
-    if frame.program.num_operations() < 500:
-        driver_octree_optimize.jit_merge_point(program=frame.program)
-    jit.promote(frame.program)
 
     # check whether area is small enough to switch to naive evaluation
     if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
-        frame = DirectFrame(frame.program)
+        frame = DirectFrame(newprogram)
         render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
         return
+    if newprogram.num_operations() < 500:
+        driver_octree_optimize.jit_merge_point(program=newprogram)
     midx = (startx + stopx) // 2
     midy = (starty + stopy) // 2
     for new_startx, new_stopx in [(startx, midx), (midx, stopx)]:
         for new_starty, new_stopy in [(starty, midy), (midy, stopy)]:
             if not objectmodel.we_are_translated():
                 print("====================================", level, new_startx, new_stopx, new_starty, new_stopy)
-            render_image_octree_rec_optimize(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
+            render_image_octree_rec_optimize(newprogram, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
 
 def render_image_octree_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy):
     result = [' '] * (width * height)

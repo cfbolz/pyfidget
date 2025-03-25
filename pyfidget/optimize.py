@@ -18,6 +18,7 @@ def optimize(program, a, b, c, d, e, f):
     minimum = opt.intervalframe.minvalues[resindex]
     maximum = opt.intervalframe.maxvalues[resindex]
     if minimum > 0.0 or maximum <= 0:
+        opt.delete()
         return None, minimum, maximum
     result = work_backwards(resultops, result, opt.minvalues, opt.maxvalues)
     res = dce(resultops, result)

@@ -234,5 +234,5 @@ P4
 def test_render_octree_optimize():
     frame = quarter_frame(IntervalFrame)
     data1 = render_image_octree(frame, 1024, 1024, -1., 1., -1., 1.)
-    data2 = render_image_octree_optimize(frame, 1024, 1024, -1., 1., -1., 1.)
+    data2 = render_image_octree_optimize(frame.program, 1024, 1024, -1., 1., -1., 1.)
     assert data1 == data2

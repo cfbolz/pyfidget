@@ -51,15 +51,13 @@ def main(argv):
         print("time, octree: %s" % (t2 - t1))
     if phase == 0 or phase == 3:
         t1 = time.time()
-        frame = IntervalFrame(operations)
-        data = render_image_octree_optimize(frame, length, length, *args)
+        data = render_image_octree_optimize(operations, length, length, *args)
         t2 = time.time()
         print("time, octree with optimizer: %s" % (t2 - t1))
     if phase == 4:
         t1 = time.time()
-        frame = IntervalFrame(operations)
         for i in range(500):
-            data = render_image_octree_optimize(frame, length, length, *args)
+            data = render_image_octree_optimize(operations, length, length, *args)
         t2 = time.time()
         print("time, octree with optimizer, 500 times, average: %s" % ((t2 - t1) / 500.))
         return 0
