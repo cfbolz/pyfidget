@@ -374,21 +374,19 @@ def work_backwards(resultops, result, minvalues, maxvalues):
     if not objectmodel.we_are_translated():
         for op in resultops:
             print(resultops.op_to_str(op), minvalues[op], maxvalues[op])
-    def check_gt(resultops, op, minvalues, maxvalues, val=0.0):
+    def check_gt(resultops, op, minvalues, maxvalues, check_gt, val=0.0):
         while 1:
             func = resultops.get_func(op)
             if not objectmodel.we_are_translated():
                 print("round!", OPS.char_to_name(func), "_%x" % op, minvalues[op], maxvalues[op])
-            #if func == OPS.max:
-                #arg0, arg1 = resultops.get_args(op)
-                #narg0 = check_ge(arg0)
-                #narg1 = check_ge(arg1)
-                #if narg0 != arg0 or narg1 != arg1:
-                #    import pdb;pdb.set_trace()
-                #if maxvalues[arg0] < 0:
-                #    import pdb;pdb.set_trace()
-            #if func == OPS.add:
-            #    import pdb;pdb.set_trace()
+            if func == OPS.max:
+                arg0, arg1 = resultops.get_args(op)
+                narg0 = check_gt(resultops, arg0, minvalues, maxvalues, check_gt, val)
+                if narg0 != arg0:
+                    resultops.arguments[op * 2 + 0] = narg0
+                narg1 = check_gt(resultops, arg1, minvalues, maxvalues, check_gt, val)
+                if narg1 != arg1:
+                    resultops.arguments[op * 2 + 1] = narg1
             if func == OPS.min:
                 arg0, arg1 = resultops.get_args(op)
                 if minvalues[arg0] > val:
@@ -399,7 +397,7 @@ def work_backwards(resultops, result, minvalues, maxvalues):
                     continue
             break
         return op
-    otherop = check_gt(resultops, result, minvalues, maxvalues)
+    otherop = check_gt(resultops, result, minvalues, maxvalues, check_gt)
     if result != otherop:
         if not objectmodel.we_are_translated():
             print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)

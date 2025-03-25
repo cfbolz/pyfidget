@@ -274,8 +274,11 @@ out2 sub b c
 
 def test_min_backwards_removal():
     ops = """
+# [1, 100]
 x var-x
+# [-10, 10]
 y var-y
+# [-10, 10
 out min x y
 """
     expected = """
@@ -283,6 +286,29 @@ y var-y
 """
     check_optimize(ops, 0.01, 10.0, -10, 10, 0, 100, expected)
 
+def test_max_backwards_removal():
+    ops = """
+# [1, 100]
+x var-x
+
+# [-10, 10]
+y var-y
+
+# [-100, 100]
+z var-z
+
+# [-10, 10]
+out min x y
+
+# [-10, 100]
+out2 max z out
+"""
+    expected = """
+y var-y
+z var-z
+out max z y
+"""
+    check_optimize(ops, 0.01, 10.0, -10, 10, -100, 100, expected)
 
 # ____________________________________________________________
 # random test case generation
