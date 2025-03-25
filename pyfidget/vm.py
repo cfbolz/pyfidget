@@ -380,9 +380,8 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
     maxx = float(maxx)
     miny = float(miny)
     maxy = float(maxy)
-    result = [[" " for _ in range(width)] for _ in range(height)]
     num_pixels = width * height
-    result = [" "] * num_pixels
+    result = ['\x00'] * num_pixels # 0 is white
     index = 0
     row_index = 0
     column_index = 0
@@ -396,7 +395,7 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
                                       width=width, height=height, frame=frame,
                                       minx=minx, dx=dx, dy=dy, result=result)
         res = frame.run_floats(x, y, 0)
-        result[index] = " " if res > 0 else "#" # TODO: use int_choose
+        result[index] = chr(res <= 0.0)
         index += 1
         column_index += 1
         x += dx
@@ -420,12 +419,12 @@ def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, re
             driver_render_part.jit_merge_point(program=frame.program)
             jit.promote(frame.program)
             res = frame.run_floats(x, y, 0)
-            result[index] = " " if res > 0 else "#"
+            result[index] = chr(res <= 0.0)
             index += 1
             x += dx
 
 def render_image_octree(frame, width, height, minx, maxx, miny, maxy):
-    result = [' '] * (width * height)
+    result = ['\x00'] * (width * height)
     render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
     return result
 
@@ -463,7 +462,7 @@ def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result
             render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
 
 def render_image_octree_optimize(program, width, height, minx, maxx, miny, maxy):
-    result = [' '] * (width * height)
+    result = ['\x00'] * (width * height)
     render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height)
     return result
 
@@ -503,7 +502,7 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
             render_image_octree_rec_optimize(newprogram, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
 
 def render_image_octree_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy):
-    result = [' '] * (width * height)
+    result = ['\x00'] * (width * height)
     output = ['digraph G {']
     render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height, output)
     output.append('}')
@@ -566,9 +565,7 @@ def render_image_naive_optimize_check(frame, width, height, minx, maxx, miny, ma
     maxx = float(maxx)
     miny = float(miny)
     maxy = float(maxy)
-    result = [[" " for _ in range(width)] for _ in range(height)]
     num_pixels = width * height
-    result = [" "] * num_pixels
     index = 0
     row_index = 0
     column_index = 0
@@ -576,9 +573,9 @@ def render_image_naive_optimize_check(frame, width, height, minx, maxx, miny, ma
         x = minx + (maxx - minx) * column_index / (width - 1)
         y = miny + (maxy - miny) * row_index / (height - 1)
         res = frame.run_floats(x, y, 0)
-        reg_res = " " if res > 0 else "#" # TODO: use int_choose
+        reg_res = res > 0
         res = opt_frame.run_floats(x, y, 0)
-        opt_res = " " if res > 0 else "#" # TODO: use int_choose
+        opt_res = res > 0
         assert opt_res == reg_res
         index += 1
         column_index += 1
@@ -593,7 +590,7 @@ def _fill_black(width, height, result, startx, stopx, starty, stopy):
     for column_index in range(startx, stopx):
         for row_index in range(starty, stopy):
             index = row_index * width + column_index
-            result[index] = "#"
+            result[index] = '\x01'
 
 
 def flat_list_to_ppm(data, width, height):
@@ -602,7 +599,7 @@ def flat_list_to_ppm(data, width, height):
     rows = objectmodel.newlist_hint(height)
     rowindex = 0
     for cell in data:
-        if cell == " ":
+        if cell == "\x00":
             row[rowindex] = "0"
         else:
             row[rowindex] = "1"
@@ -624,7 +621,7 @@ def flat_list_to_ppm_binary(data, width, height):
     bits = 0
     rowbits = 0
     for cell in data:
-        if cell != " ":
+        if cell != "\x00":
             nextbyte |= 1
         bits += 1
         rowbits += 1

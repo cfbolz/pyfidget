@@ -123,7 +123,7 @@ P1
 
 def test_render_naively_fragment():
     frame = quarter_frame()
-    result = [' '] * 400
+    result = ['\x00'] * 400
     render_image_naive_fragment(frame, 20, 20, -1.0, 1.0, -1.0, 1.0, result, 2, 5, 2, 18)
     ppm = flat_list_to_ppm(result, 20, 20)
     assert ppm == """\
