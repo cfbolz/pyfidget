@@ -34,12 +34,15 @@ driver_render_part = jit.JitDriver(
 
 
 class ProgramBuilder(object):
-    def __init__(self, sizehint, const_sizehint=5):
+    def __init__(self, sizehint=10, const_sizehint=5):
         self.funcs = ['\xff'] * sizehint
         self.arguments = [0] * (sizehint * 2)
         self.index = 0
         self.consts = [0.0] * const_sizehint
         self.const_index = 0
+
+    def reset(self):
+        self.index = self.const_index = 0
 
     def add_const(self, const, name=None):
         arg = self.const_index
@@ -270,6 +273,10 @@ class IntervalFrame(object):
 
     def __init__(self, program):
         self.program = program
+        self.minvalues = self.maxvalues = None
+
+    def reset(self, program):
+        self.program = program
 
     def run_intervals(self, minx, maxx, miny, maxy, minz, maxz):
         self.setxyz(minx, maxx, miny, maxy, minz, maxz)
@@ -278,6 +285,8 @@ class IntervalFrame(object):
         return self.minvalues[index], self.maxvalues[index]
 
     def setup(self, length):
+        if self.minvalues and len(self.minvalues) >= length:
+            return
         self.minvalues = [0.0] * length
         self.maxvalues = [0.0] * length
 

@@ -10,7 +10,7 @@ from pyfidget.vm import ProgramBuilder, IntervalFrame
 LEAVE_AS_IS = sys.maxint
 
 def optimize(program, a, b, c, d, e, f):
-    opt = Optimizer(program)
+    opt = Optimizer.new(program)
     opt.optimize(a, b, c, d, e, f)
     resindex = program.num_operations() - 1
     result = opt.opreplacements[resindex]
@@ -21,6 +21,7 @@ def optimize(program, a, b, c, d, e, f):
         return None, minimum, maximum
     result = work_backwards(resultops, result, opt.minvalues, opt.maxvalues)
     res = dce(resultops, result)
+    opt.delete()
     #if not objectmodel.we_are_translated():
     #    print("length before", program.num_operations(), "len after", res.num_operations())
     #    print(res)
@@ -95,17 +96,52 @@ class Stats(object):
 
 stats = Stats()
 
+
+class MemManager(object):
+    unused_optimizer = None
+
+mem_manager = MemManager()
+
+
 class Optimizer(object):
     def __init__(self, program):
         self.program = program
         num_operations = program.num_operations()
         self.resultops = ProgramBuilder(num_operations)
+        self.intervalframe = IntervalFrame(self.program)
         # old index -> new index
         self.opreplacements = [0] * num_operations
         self.minvalues = [0.0] * num_operations
         self.maxvalues = [0.0] * num_operations
         self.index = 0
         #self.seen_consts = {}
+        self.next = None
+
+    def _reset(self, program):
+        self.resultops.reset()
+        self.intervalframe.reset(program)
+        num_operations = program.num_operations()
+        self.index = 0
+        if len(self.opreplacements) < num_operations:
+            self.opreplacements = [0] * num_operations
+            self.minvalues = [0.0] * num_operations
+            self.maxvalues = [0.0] * num_operations
+        self.program = program
+
+    @staticmethod
+    def new(program):
+        if mem_manager.unused_optimizer is not None:
+            res = mem_manager.unused_optimizer
+            mem_manager.unused_optimizer = res.next
+            res.next = None
+            res._reset(program)
+            return res
+        return Optimizer(program)
+
+    def delete(self):
+        self.program = None
+        self.next = mem_manager.unused_optimizer
+        mem_manager.unused_optimizer = self
 
     def get_replacement(self, op):
         return self.opreplacements[op]
@@ -130,7 +166,6 @@ class Optimizer(object):
 
     def optimize(self, a, b, c, d, e, f):
         program = self.program
-        self.intervalframe = IntervalFrame(self.program)
         self.intervalframe.setup(self.program.num_operations())
         self.intervalframe.setxyz(a, b, c, d, e, f)
 
