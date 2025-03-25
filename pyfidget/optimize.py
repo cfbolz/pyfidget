@@ -102,8 +102,9 @@ class Optimizer(object):
         self.resultops = ProgramBuilder(num_operations)
         # old index -> new index
         self.opreplacements = [0] * num_operations
-        self.minvalues = objectmodel.newlist_hint(num_operations)
-        self.maxvalues = objectmodel.newlist_hint(num_operations)
+        self.minvalues = [0.0] * num_operations
+        self.maxvalues = [0.0] * num_operations
+        self.index = 0
         #self.seen_consts = {}
 
     def get_replacement(self, op):
@@ -120,8 +121,10 @@ class Optimizer(object):
         #    stats.dedup_const_worked += 1
         #    return self.seen_consts[value]
         const = self.resultops.add_const(value)
-        self.minvalues.append(value)
-        self.maxvalues.append(value)
+        index = self.index
+        self.minvalues[index] = value
+        self.maxvalues[index] = value
+        self.index = index + 1
         #self.seen_consts[value] = const
         return const
 
@@ -152,10 +155,12 @@ class Optimizer(object):
             if not objectmodel.we_are_translated():
                 print(program.op_to_str(index), "-->\t", self.resultops.op_to_str(newop), "\t", self.intervalframe.minvalues[index], self.intervalframe.maxvalues[index])
             self.opreplacements[index] = newop
-            if self.resultops.num_operations() > len(self.minvalues):
-                self.minvalues.append(minimum)
-                self.maxvalues.append(maximum)
-            assert self.resultops.num_operations() == len(self.minvalues)
+            if self.resultops.num_operations() > self.index:
+                index = self.index
+                self.minvalues[index] = minimum
+                self.maxvalues[index] = maximum
+                self.index = index + 1
+            assert self.resultops.num_operations() == self.index
 
     def cse(self, op, func):
         return LEAVE_AS_IS
