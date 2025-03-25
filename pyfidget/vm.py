@@ -34,18 +34,19 @@ driver_render_part = jit.JitDriver(
 
 
 class ProgramBuilder(object):
-    def __init__(self, sizehint, const_sizehint=-1):
+    def __init__(self, sizehint, const_sizehint=5):
         self.funcs = ['\xff'] * sizehint
         self.arguments = [0] * (sizehint * 2)
         self.index = 0
-        if const_sizehint > 0:
-            self.consts = objectmodel.newlist_hint(const_sizehint)
-        else:
-            self.consts = []
+        self.consts = [0.0] * const_sizehint
+        self.const_index = 0
 
     def add_const(self, const, name=None):
-        arg = len(self.consts)
-        self.consts.append(const)
+        arg = self.const_index
+        if arg == len(self.consts):
+            self.consts = self.consts + [0.0] * len(self.consts)
+        self.consts[arg] = const
+        self.const_index = arg + 1
         return self.add_op(OPS.const, arg, name=name)
 
     def add_op(self, func, arg0=0, arg1=0, name=None):
@@ -63,7 +64,7 @@ class ProgramBuilder(object):
         return res
 
     def finish(self):
-        res = Program(self.funcs[:self.index], self.arguments[:2*self.index], self.consts[:])
+        res = Program(self.funcs[:self.index], self.arguments[:2*self.index], self.consts[:self.const_index])
         return res
 
     def get_func(self, index):
