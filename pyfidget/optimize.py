@@ -21,7 +21,7 @@ def optimize(program, a, b, c, d, e, f):
         opt.delete()
         return None, minimum, maximum
     result = work_backwards(resultops, result, opt.minvalues, opt.maxvalues)
-    res = dce(resultops, result)
+    res = opt.dce(result)
     opt.delete()
     #if not objectmodel.we_are_translated():
     #    print("length before", program.num_operations(), "len after", res.num_operations())
@@ -354,57 +354,62 @@ class Optimizer(object):
             return self.opt_neg(arg0, arg0minimum, arg0maximum)
         return LEAVE_AS_IS
 
-
-def dce(ops, final_op):
-    def mark_alive(new_positions, arg):
-        if new_positions[arg] == -1:
-            new_positions[arg] = 0
-    new_positions = [-1] * ops.num_operations()
-    new_positions[final_op] = 0
-    alive_ops = 0
-    alive_consts = 0
-    for index in range(final_op, -1, -1):
-        if new_positions[index] < 0:
-            continue
-        alive_ops += 1
-        args = ops.get_args(index)
-        func = ops.get_func(index)
-        if func == OPS.const:
-            alive_consts += 1
-            continue
-        numargs = OPS.num_args(func)
-        if numargs == 0:
-            pass
-        else:
-            arg0, arg1 = ops.get_args(index)
-            if numargs == 1:
-                mark_alive(new_positions, arg0)
-            else:
-                mark_alive(new_positions, arg0)
-                mark_alive(new_positions, arg1)
-    index = 0
-
-    output = ProgramBuilder(alive_ops, alive_consts)
-    for op in range(final_op + 1):
-        if new_positions[index] >= 0:
-            func = ops.get_func(op)
-            arg0, arg1 = ops.get_args(op)
+    def dce(self, final_op):
+        ops = self.resultops
+        def mark_alive(new_positions, arg):
+            if new_positions[arg] == -1:
+                new_positions[arg] = 0
+        # reuse no longer used opreplacements lists
+        new_positions = self.opreplacements
+        for i in range(final_op):
+            new_positions[i] = -1
+        new_positions[final_op] = 0
+        alive_ops = 0
+        alive_consts = 0
+        for index in range(final_op, -1, -1):
+            if new_positions[index] < 0:
+                continue
+            alive_ops += 1
+            args = ops.get_args(index)
+            func = ops.get_func(index)
             if func == OPS.const:
-                newop = output.add_const(ops.consts[arg0])
+                alive_consts += 1
+                continue
+            numargs = OPS.num_args(func)
+            if numargs == 0:
+                pass
             else:
-                numargs = OPS.num_args(func)
-                if numargs == 0:
-                    arg0 = arg1 = 0
-                elif numargs == 1:
-                    arg0 = new_positions[arg0]
-                    arg1 = 0
-                elif numargs == 2:
-                    arg0 = new_positions[arg0]
-                    arg1 = new_positions[arg1]
-                newop = output.add_op(func, arg0, arg1)
-            new_positions[index] = newop
-        index += 1
-    return output.finish()
+                arg0, arg1 = ops.get_args(index)
+                if numargs == 1:
+                    mark_alive(new_positions, arg0)
+                else:
+                    mark_alive(new_positions, arg0)
+                    mark_alive(new_positions, arg1)
+        index = 0
+
+        # fiddly, but saves time: move the operations in the ops ProgramBuilder in place
+        ops.reset()
+        for op in range(final_op + 1):
+            if new_positions[index] >= 0:
+                func = ops.funcs[op]
+                arg0 = ops.arguments[op*2]
+                if func == OPS.const:
+                    newop = ops.add_const(ops.consts[arg0])
+                else:
+                    arg1 = ops.arguments[op*2 + 1]
+                    numargs = OPS.num_args(func)
+                    if numargs == 0:
+                        arg0 = arg1 = 0
+                    elif numargs == 1:
+                        arg0 = new_positions[arg0]
+                        arg1 = 0
+                    elif numargs == 2:
+                        arg0 = new_positions[arg0]
+                        arg1 = new_positions[arg1]
+                    newop = ops.add_op(func, arg0, arg1)
+                new_positions[index] = newop
+            index += 1
+        return ops.finish()
 
 
 def work_backwards(resultops, result, minvalues, maxvalues):
