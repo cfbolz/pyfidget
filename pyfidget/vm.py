@@ -10,7 +10,7 @@ def should_unroll_one_iteration(program):
 driver_render = jit.JitDriver(greens=['program'],
                               reds=['index', 'row_index', 'column_index', 'width', 'height',
                                     'frame', 'result',
-                                    'maxx', 'minx', 'maxy', 'miny'],
+                                    'dx', 'minx', 'dy'],
                               is_recursive=True)
 
 driver_octree = jit.JitDriver(
@@ -386,36 +386,43 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
     index = 0
     row_index = 0
     column_index = 0
+    x = minx
+    y = miny
+    dx = (maxx - minx) / (width - 1)
+    dy = (maxy - miny) / (height - 1)
     while 1:
         driver_render.jit_merge_point(program=frame.program, index=index,
                                       row_index=row_index, column_index=column_index,
                                       width=width, height=height, frame=frame,
-                                      maxx=maxx, minx=minx, maxy=maxy, miny=miny,
-                                      result=result)
-        x = minx + (maxx - minx) * column_index / (width - 1)
-        y = miny + (maxy - miny) * row_index / (height - 1)
+                                      minx=minx, dx=dx, dy=dy, result=result)
         res = frame.run_floats(x, y, 0)
         result[index] = " " if res > 0 else "#" # TODO: use int_choose
         index += 1
         column_index += 1
+        x += dx
         if column_index >= width:
+            x = minx
             column_index = 0
             row_index += 1
+            y += dy
             if row_index >= height:
                 break
     return result
 
 def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy):
     num_pixels = width * height
-    for column_index in range(startx, stopx):
-        for row_index in range(starty, stopy):
+    dx = (maxx - minx) / (width - 1)
+    for row_index in range(starty, stopy):
+        y = miny + (maxy - miny) * row_index / (height - 1)
+        x = minx + dx * startx
+        index = row_index * width + startx
+        for column_index in range(startx, stopx):
             driver_render_part.jit_merge_point(program=frame.program)
             jit.promote(frame.program)
-            x = minx + (maxx - minx) * column_index / (width - 1)
-            y = miny + (maxy - miny) * row_index / (height - 1)
             res = frame.run_floats(x, y, 0)
-            index = row_index * width + column_index
             result[index] = " " if res > 0 else "#"
+            index += 1
+            x += dx
 
 def render_image_octree(frame, width, height, minx, maxx, miny, maxy):
     result = [' '] * (width * height)
