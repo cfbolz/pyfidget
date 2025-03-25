@@ -18,8 +18,12 @@ def check_optimize(program, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-
         expected = minx
         minx = -1000
 
-    newops, _, _ = optimize(program, minx, maxx, miny, maxy, minz, maxz)
-    check_well_formed(newops)
+    newops, minimum, maximum = optimize(program, minx, maxx, miny, maxy, minz, maxz)
+    if newops:
+        check_well_formed(newops)
+    else:
+        assert (minimum, maximum) == expected
+        return
     formatted = newops.pretty_format()
     if not formatted == parse(expected).pretty_format():
         print("EXPECTED:")
@@ -214,12 +218,19 @@ def test_cse():
     b min x y
     out sub a b
     """
-    expected = """
-    out const 0.0
-    """
-    check_optimize(ops, expected)
+    check_optimize(ops, expected=(0.0, 0.0))
 
 @pytest.mark.xfail
+def test_cse_invert():
+    ops = """
+    x var-x
+    y var-y
+    a min x y
+    b min y x
+    out sub a b
+    """
+    check_optimize(ops, expected=(0.0, 0.0))
+
 def test_cse_bug():
     ops = """
 x var-x

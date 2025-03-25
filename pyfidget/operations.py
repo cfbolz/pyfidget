@@ -8,23 +8,28 @@ class Opnums(object):
     def num_args(self, char):
         return numargs[ord(char)]
 
+    def is_symmetric(self, char):
+        return is_symmetric[ord(char)]
+
 opname_to_char = {}
 opnames = []
 numargs = []
+is_symmetric = []
 
-def add_op(name, num_args):
+def add_op(name, num_args, symmetric=False):
     opname_to_char[name] = chr(len(opname_to_char))
     opnames.append(name)
     numargs.append(num_args)
+    is_symmetric.append(symmetric)
 
 add_op('var-x', 0)
 add_op('var-y', 0)
 add_op('var-z', 0)
-add_op('add', 2)
+add_op('add', 2, symmetric=True)
 add_op('sub', 2)
-add_op('mul', 2)
-add_op('max', 2)
-add_op('min', 2)
+add_op('mul', 2, symmetric=True)
+add_op('max', 2, symmetric=True)
+add_op('min', 2, symmetric=True)
 add_op('square', 1)
 add_op('sqrt', 1)
 add_op('exp', 1)

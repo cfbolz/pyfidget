@@ -79,9 +79,10 @@ class Stats(object):
         print('dedup_const_worked', self.dedup_const_worked)
         print('cse_worked', self.cse_worked)
         print('constfold', self.constfold)
-        print('abs_pos', self.abs_pos)
-        print('abs_neg', self.abs_neg)
-        print('abs_of_neg', self.abs_of_neg)
+        if self.ops[ord(OPS.abs)]:
+            print('abs_pos', self.abs_pos)
+            print('abs_neg', self.abs_neg)
+            print('abs_of_neg', self.abs_of_neg)
         print('neg_neg', self.neg_neg)
         print('square_of_neg', self.square_of_neg)
         print('add0', self.add0)
@@ -187,27 +188,25 @@ class Optimizer(object):
             stats.constfold += 1
             newop = self.newconst(minimum)
         else:
-            newop = self.newop(func, arg0, arg1)
+            newop = self.cse(func, arg0, arg1)
+            if newop < 0:
+                newop = self.newop(func, arg0, arg1)
         self.intervalframe._set(newop, minimum, maximum)
         return newop
 
-    def cse(self, op, func):
-        return LEAVE_AS_IS # disabled at the moment, seems not worth it
-        arg0, arg1 = self.program.get_args(op)
-        arg0 = self.get_replacement(arg0)
-        arg1 = self.get_replacement(arg1)
+    def cse(self, func, arg0, arg1):
         num_resultops = self.resultops.num_operations()
-        num_correct_ops = 0
+        symmetric = OPS.is_symmetric(func)
         for index in range(num_resultops - 1, max(-1, num_resultops - WINDOW_SIZE), -1):
             other_func = self.resultops.get_func(index)
             if other_func != func:
                 continue
-            num_correct_ops += 1
             other_arg0, other_arg1 = self.resultops.get_args(index)
-            if other_arg0 == arg0 and other_arg1 == arg1:
+            if (other_arg0 == arg0 and other_arg1 == arg1) or (
+                    symmetric and other_arg1 == arg0 and other_arg0 == arg1):
                 stats.cse_worked += 1
                 return index
-        return LEAVE_AS_IS
+        return -1
 
     def _optimize_op(self, op, func):
         program = self.program
