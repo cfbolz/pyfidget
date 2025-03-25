@@ -253,6 +253,10 @@ class DirectFrame(object):
         self.floatvalues[resindex] = abs(self.floatvalues[arg0index])
 
 def float_choose(cond, iftrue, iffalse):
+    if not jit.we_are_jitted():
+        if cond:
+            return iftrue
+        return iffalse
     return cond * iftrue + (1 - cond) * iffalse
 
 def min(a, b):
