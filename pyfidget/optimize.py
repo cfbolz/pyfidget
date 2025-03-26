@@ -3,12 +3,82 @@ import math
 import sys
 
 from rpython.rlib import jit, objectmodel
+from rpython.tool.udir import udir
 
 from pyfidget.operations import OPS
 from pyfidget.vm import ProgramBuilder, IntervalFrame
 
+from dotviewer.graphpage import GraphPage as BaseGraphPage
+
+class GraphPage(BaseGraphPage):
+    save_tmp_file = str(udir.join('graph.dot'))
+
+    def compute(self, source, links):
+        self.source = source
+        self.links = links
+
+
 def isfinite(val):
     return not math.isinf(val) and not math.isnan(val)
+
+from collections import defaultdict
+def collect_uses(p):
+    d = defaultdict(list)
+    for op in p:
+        func = p.get_func(op)
+        if func == OPS.const:
+            continue
+        args = p.get_args(op)
+        for arg in args[:OPS.num_args(func)]:
+            d[arg].append(op)
+    return d
+
+def split_blocks(res, d, allops):
+    blocks = defaultdict(list)
+    for op in res:
+        currop = op
+        while 1:
+            uses = d[currop]
+            if len(uses) != 1 or OPS.mask(res.get_func(currop)) in (OPS.min, OPS.max):
+                break
+            currop, = uses
+        blocks[currop].append(op)
+    return blocks
+
+
+def graph(res, d):
+    from dotviewer import graphclient
+    out = ['digraph G {']
+    allops = set(list(res))
+    blocks = split_blocks(res, d, allops)
+    minmaxspine = {max(res)}
+    for endop in sorted(blocks, reverse=True):
+        if OPS.mask(res.get_func(endop)) in (OPS.min, OPS.max):
+            if len(d[endop]) == 1 and d[endop][0] in minmaxspine:
+                minmaxspine.add(endop)
+
+    edges = set()
+    for endop, ops in blocks.items():
+        label = []
+        for op in ops:
+            label.append(res.op_to_str(op))
+            args = res.get_args(op)
+            func = res.get_func(op)
+            if func == OPS.const:
+                continue
+            for arg in args[:OPS.num_args(func)]:
+                if arg not in ops:
+                    edges.add((endop, arg))
+        label.reverse()
+        color = 'yellow' if endop in minmaxspine else 'white'
+        out.append("%s [shape=box, label=\"%s\", color=%s];" % (endop, "\\l".join(label), color))
+    for endop, arg in edges:
+        out.append("%s -> %s;" % (endop, arg))
+    out.append("}")
+    dot = "\n".join(out)
+    with open("out.dot", "w") as f:
+        f.write(dot)
+    GraphPage(dot, {"_%x" % op: res.op_to_str(op) for op in res}).display()
 
 def optimize(program, a, b, c, d, e, f, for_direct=True):
     for_direct = True
@@ -24,6 +94,10 @@ def optimize(program, a, b, c, d, e, f, for_direct=True):
     res = opt.dce(result)
     if not objectmodel.we_are_translated() and for_direct:
         print(res.pretty_format())
+        if 50 < res.num_operations() < 1000:
+            d = collect_uses(res)
+            graph(res, d)
+
     opt.delete()
     #if not objectmodel.we_are_translated():
     #    print("length before", program.num_operations(), "len after", res.num_operations())
@@ -464,6 +538,8 @@ def convert_min_to_shortcut(resultops, op):
     converted = 0
     while 1:
         func = OPS.mask(resultops.get_func(op))
+        if func == OPS.const:
+            break
         resultops.funcs[op] = OPS.add_flag(func, OPS.RETURN_IF_NEG)
         if func == OPS.min:
             converted += 1
@@ -477,6 +553,8 @@ def convert_max_to_shortcut(resultops, op):
     converted = 0
     while 1:
         func = OPS.mask(resultops.get_func(op))
+        if func == OPS.const:
+            break
         resultops.funcs[op] = OPS.add_flag(func, OPS.RETURN_IF_POS)
         if func == OPS.max:
             converted += 1

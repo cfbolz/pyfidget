@@ -4,7 +4,7 @@ import math
 import pytest
 from hypothesis import given, strategies, assume
 
-from pyfidget.optimize import optimize
+from pyfidget.optimize import optimize, convert_to_shortcut
 from pyfidget.parse import parse
 from pyfidget.vm import Program, ProgramBuilder, DirectFrame
 from pyfidget.vm import IntervalFrame
@@ -349,6 +349,71 @@ y var-y
 a max x y
 """
     check_optimize(ops, expected)
+# ____________________________________________________________
+
+def test_min_backwards():
+    program = """
+a var-x
+b var-y
+out min a b
+"""
+    program = parse(program)
+    convert_to_shortcut(program, 2)
+    assert program.pretty_format() == """\
+_0 var-x return_if_neg _0 _0
+_1 var-y return_if_neg _0 _0
+_2 min return_if_neg _0 _1\
+"""
+
+    program = """
+a var-x
+b var-y
+out max a b
+"""
+    program = parse(program)
+    convert_to_shortcut(program, 2)
+    assert program.pretty_format() == """\
+_0 var-x return_if_pos _0 _0
+_1 var-y return_if_pos _0 _0
+_2 max return_if_pos _0 _1\
+"""
+
+def test_min_backwards_further():
+    program = """
+a var-x
+b var-y
+c var-z
+out min a b
+out2 min out c
+"""
+    program = parse(program)
+    convert_to_shortcut(program, 4)
+    assert program.pretty_format() == """\
+_0 var-x return_if_neg _0 _0
+_1 var-y return_if_neg _0 _0
+_2 var-z return_if_neg _0 _0
+_3 min return_if_neg _0 _1
+_4 min return_if_neg _3 _2\
+"""
+
+def test_min_max_interleave_backwards():
+    program = """
+a var-x
+b var-y
+c var-z
+out max c b
+out2 min out a
+"""
+    program = parse(program)
+    convert_to_shortcut(program, 4)
+    assert program.pretty_format() == """\
+_0 var-x return_if_neg _0 _0
+_1 var-y return_if_neg _0 _0
+_2 var-z return_if_neg _0 _0
+_3 min return_if_neg _0 _1
+_4 min return_if_neg _3 _2\
+"""
+
 # ____________________________________________________________
 # random test case generation
 

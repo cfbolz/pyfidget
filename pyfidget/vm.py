@@ -129,8 +129,8 @@ class Program(object):
     def _op_to_str(self, i, result):
         func = OPS.char_to_name(self.get_func(i))
         arg0, arg1 = self.get_args(i)
-        if func == "const":
-            result.append("_%x const %s" % (i, self.consts[arg0]))
+        if func.startswith("const"):
+            result.append("_%x %s %s" % (i, func, self.consts[arg0]))
         else:
             result.append("_%x %s _%x _%x" % (i, func, arg0, arg1))
 
