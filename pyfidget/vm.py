@@ -222,6 +222,8 @@ class DirectFrame(object):
             if func == OPS.const:
                 floatvalues[op] = program.consts[arg0]
                 continue
+            farg0 = floatvalues[arg0]
+            farg1 = floatvalues[arg1]
             bare_func = OPS.mask(func)
             if bare_func == OPS.const:
                 res = program.consts[arg0]
@@ -232,25 +234,25 @@ class DirectFrame(object):
             elif bare_func == OPS.var_z:
                 res = self.z
             elif bare_func == OPS.add:
-                res = self.add(arg0, arg1)
+                res = self.add(farg0, farg1)
             elif bare_func == OPS.sub:
-                res = self.sub(arg0, arg1)
+                res = self.sub(farg0, farg1)
             elif bare_func == OPS.mul:
-                res = self.mul(arg0, arg1)
+                res = self.mul(farg0, farg1)
             elif bare_func == OPS.max:
-                res = self.max(arg0, arg1)
+                res = self.max(farg0, farg1)
             elif bare_func == OPS.min:
-                res = self.min(arg0, arg1)
+                res = self.min(farg0, farg1)
             elif bare_func == OPS.square:
-                res = self.square(arg0)
+                res = self.square(farg0)
             elif bare_func == OPS.sqrt:
-                res = self.sqrt(arg0)
+                res = self.sqrt(farg0)
             elif bare_func == OPS.exp:
-                res = self.exp(arg0)
+                res = self.exp(farg0)
             elif bare_func == OPS.neg:
-                res = self.neg(arg0)
+                res = self.neg(farg0)
             elif bare_func == OPS.abs:
-                res = self.abs(arg0)
+                res = self.abs(farg0)
             else:
                 assert 0
             if OPS.should_return_if_neg(func):
@@ -267,36 +269,36 @@ class DirectFrame(object):
     def _run_op(self, op, func):
         program = self.program
 
-    def add(self, arg0index, arg1index):
-        return self.floatvalues[arg0index] + self.floatvalues[arg1index]
+    def add(self, arg0, arg1):
+        return arg0 + arg1
 
-    def sub(self, arg0index, arg1index):
-        return self.floatvalues[arg0index] - self.floatvalues[arg1index]
+    def sub(self, arg0, arg1):
+        return arg0 - arg1
 
-    def mul(self, arg0index, arg1index):
-        return self.floatvalues[arg0index] * self.floatvalues[arg1index]
+    def mul(self, arg0, arg1):
+        return arg0 * arg1
 
-    def max(self, arg0index, arg1index):
-        return max(self.floatvalues[arg0index], self.floatvalues[arg1index])
+    def max(self, arg0, arg1):
+        return max(arg0, arg1)
 
-    def min(self, arg0index, arg1index):
-        return min(self.floatvalues[arg0index], self.floatvalues[arg1index])
+    def min(self, arg0, arg1):
+        return min(arg0, arg1)
 
-    def square(self, arg0index):
-        val = self.floatvalues[arg0index]
+    def square(self, arg0):
+        val = arg0
         return val*val
 
-    def sqrt(self, arg0index):
-        return math.sqrt(self.floatvalues[arg0index])
+    def sqrt(self, arg0):
+        return math.sqrt(arg0)
 
-    def exp(self, arg0index):
-        return math.exp(self.floatvalues[arg0index])
+    def exp(self, arg0):
+        return math.exp(arg0)
 
-    def neg(self, arg0index):
-        return -self.floatvalues[arg0index]
+    def neg(self, arg0):
+        return -arg0
 
-    def abs(self, arg0index):
-        return abs(self.floatvalues[arg0index])
+    def abs(self, arg0):
+        return abs(arg0)
 
 def float_choose(cond, iftrue, iffalse):
     if not jit.we_are_jitted():
@@ -378,6 +380,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._add(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _add(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return arg0minimum + arg1minimum, arg0maximum + arg1maximum
 
@@ -389,6 +392,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._sub(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _sub(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return arg0minimum - arg1maximum, arg0maximum - arg1minimum
 
@@ -400,6 +404,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._mul(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _mul(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return min4(arg0minimum * arg1minimum, arg0minimum * arg1maximum, arg0maximum * arg1minimum, arg0maximum * arg1maximum), \
                max4(arg0minimum * arg1minimum, arg0minimum * arg1maximum, arg0maximum * arg1minimum, arg0maximum * arg1maximum)
@@ -412,6 +417,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._max(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _max(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return max(arg0minimum, arg1minimum), max(arg0maximum, arg1maximum)
 
@@ -423,6 +429,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._min(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _min(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return min(arg0minimum, arg1minimum), min(arg0maximum, arg1maximum)
 
@@ -430,6 +437,7 @@ class IntervalFrame(object):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         self._set(resindex, *self._square(min0, max0))
 
+    @objectmodel.always_inline
     def _square(self, min0, max0):
         if min0 >= 0:
             return min0 * min0, max0 * max0
@@ -442,6 +450,7 @@ class IntervalFrame(object):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         self._set(resindex, *self._sqrt(min0, max0))
 
+    @objectmodel.always_inline
     def _sqrt(self, min0, max0):
         if max0 < 0:
             return float('nan'), float('nan')
@@ -451,6 +460,7 @@ class IntervalFrame(object):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         self._set(resindex, *self._abs(min0, max0))
 
+    @objectmodel.always_inline
     def _abs(self, min0, max0):
         if max0 < 0:
             return -max0, -min0
@@ -462,6 +472,7 @@ class IntervalFrame(object):
     def neg(self, arg0index, resindex):
         self._set(resindex, *self._neg(self.minvalues[arg0index], self.maxvalues[arg0index]))
 
+    @objectmodel.always_inline
     def _neg(self, min0, max0):
         return -max0, -min0
 
@@ -469,6 +480,7 @@ class IntervalFrame(object):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         self._set(resindex, *self._exp(min0, max0))
 
+    @objectmodel.always_inline
     def _exp(self, min0, max0):
         return math.exp(min0), math.exp(max0)
 
