@@ -118,6 +118,7 @@ def symmetric(func):
             minimum, maximum = getattr(self.intervalframe, underscore_name)(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
             return self.opt_default(getattr(OPS, name), minimum, maximum, arg0, arg1)
         return res
+    f.func_name = func.func_name + "_symmetric"
     return f
 
 WINDOW_SIZE = 100
@@ -313,29 +314,34 @@ class Optimizer(object):
                 return index
         return -1
 
+    @objectmodel.always_inline
     def _optimize_op(self, op):
         program = self.program
         intervalframe = self.intervalframe
         func, arg0, arg1 = program.get_func_and_args(op)
+        assert arg0 >= 0
+        assert arg1 >= 0
         func = OPS.mask(func)
         stats.ops[ord(func)] += 1
         if func == OPS.var_x:
-            minimum = self.intervalframe.minx
-            maximum = self.intervalframe.maxx
+            minimum = intervalframe.minx
+            maximum = intervalframe.maxx
             return self.opt_default(OPS.var_x, minimum, maximum)
         if func == OPS.var_y:
-            minimum = self.intervalframe.miny
-            maximum = self.intervalframe.maxy
+            minimum = intervalframe.miny
+            maximum = intervalframe.maxy
             return self.opt_default(OPS.var_y, minimum, maximum)
         if func == OPS.var_z:
-            minimum = self.intervalframe.minz
-            maximum = self.intervalframe.maxz
+            minimum = intervalframe.minz
+            maximum = intervalframe.maxz
             return self.opt_default(OPS.var_z, minimum, maximum)
         if func == OPS.const:
             const = program.consts[arg0]
             return self.newconst(const)
         arg0 = self.get_replacement(arg0)
         arg1 = self.get_replacement(arg1)
+        assert arg0 >= 0
+        assert arg1 >= 0
         arg0minimum = intervalframe.minvalues[arg0]
         arg0maximum = intervalframe.maxvalues[arg0]
         arg1minimum = intervalframe.minvalues[arg1]
@@ -460,15 +466,16 @@ class Optimizer(object):
         if arg0 == arg1:
             stats.mul_self += 1
             return self.opt_square(op, arg0, arg0minimum, arg0maximum)
-        if arg0minimum == arg0maximum == 0.0:
-            stats.mul0 += 1
-            return self.newconst(0.0)
-        if arg0minimum == arg0maximum == 1.0:
-            stats.mul1 += 1
-            return arg1
-        if arg0minimum == arg0maximum == -1.0:
-            stats.mul_neg1 += 1
-            return self.opt_neg(op, arg1, arg1minimum, arg1maximum)
+        if arg0minimum == arg0maximum:
+            if arg0minimum == 0.0:
+                stats.mul0 += 1
+                return self.newconst(0.0)
+            if arg0maximum == 1.0:
+                stats.mul1 += 1
+                return arg1
+            if arg0maximum == -1.0:
+                stats.mul_neg1 += 1
+                return self.opt_neg(op, arg1, arg1minimum, arg1maximum)
         return -1
 
     def dce(self, final_op):

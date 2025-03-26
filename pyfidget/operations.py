@@ -46,6 +46,7 @@ def add_op(name, num_args, symmetric=False):
     numargs.append(num_args)
     is_symmetric.append(symmetric)
 
+add_op('dummy', 0)
 add_op('var-x', 0)
 add_op('var-y', 0)
 add_op('var-z', 0)

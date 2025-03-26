@@ -70,9 +70,11 @@ class ProgramBuilder(object):
         res = Program(self.funcs[:self.index], self.arguments[:2*self.index], self.consts[:self.const_index])
         return res
 
+    @objectmodel.always_inline
     def get_func(self, index):
         return self.get_func_and_args(index)[0]
 
+    @objectmodel.always_inline
     def get_func_and_args(self, index):
         assert index < self.index
         return self.funcs[index], self.arguments[index*2], self.arguments[index*2 + 1]
@@ -106,9 +108,11 @@ class Program(object):
     def size_storage(self):
         return self.num_operations() # for now
 
+    @objectmodel.always_inline
     def get_func(self, index):
         return self.get_func_and_args(index)[0]
 
+    @objectmodel.always_inline
     def get_func_and_args(self, index):
         return self.funcs[index], self.arguments[index*2], self.arguments[index*2 + 1]
 
