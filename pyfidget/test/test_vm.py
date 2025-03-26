@@ -1,5 +1,5 @@
 from __future__ import division, print_function
-from pyfidget.vm import Frame, Program, render_image_naive, flat_list_to_ppm, render_image_naive_fragment, \
+from pyfidget.vm import Frame, render_image_naive, flat_list_to_ppm, render_image_naive_fragment, \
         render_image_octree, flat_list_to_ppm_binary, DirectFrame, IntervalFrame, \
         render_image_octree_optimize
 from pyfidget.parse import parse

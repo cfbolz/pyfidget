@@ -211,25 +211,21 @@ class Optimizer(object):
     def __init__(self, program):
         self.program = program
         num_operations = program.num_operations()
-        self.resultops = ProgramBuilder(num_operations)
+        self.resultops = ProgramBuilder.new(num_operations)
         self.intervalframe = IntervalFrame(self.program)
         # old index -> new index
         self.opreplacements = [0] * num_operations
-        self.minvalues = [0.0] * num_operations
-        self.maxvalues = [0.0] * num_operations
         self.index = 0
         #self.seen_consts = {}
         self.next = None
 
     def _reset(self, program):
-        self.resultops.reset()
-        self.intervalframe.reset(program)
         num_operations = program.num_operations()
+        self.resultops = ProgramBuilder.new(num_operations)
+        self.intervalframe.reset(program)
         self.index = 0
         if len(self.opreplacements) < num_operations:
             self.opreplacements = [0] * num_operations
-            self.minvalues = [0.0] * num_operations
-            self.maxvalues = [0.0] * num_operations
         self.program = program
 
     @staticmethod
@@ -531,7 +527,8 @@ class Optimizer(object):
                     newop = ops.add_op(func, arg0, arg1)
                 new_positions[index] = newop
             index += 1
-        return ops.finish()
+        self.resultops = None
+        return ops
 
 def convert_to_shortcut(resultops, op):
     func = OPS.mask(resultops.get_func(op))

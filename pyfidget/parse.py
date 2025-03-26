@@ -3,7 +3,7 @@ from pyfidget.vm import ProgramBuilder
 
 def parse(code):
     lines = code.split("\n")
-    program = ProgramBuilder(len(lines))
+    program = ProgramBuilder.new(len(lines))
     opnames = {}
     for line in lines:
         line = line.strip()
@@ -33,4 +33,4 @@ def parse(code):
         else:
             raise ValueError("Invalid line: %s" % line)
         opnames[name] = op
-    return program.finish()
+    return program

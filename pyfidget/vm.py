@@ -40,9 +40,25 @@ class ProgramBuilder(object):
         self.index = 0
         self.consts = [0.0] * const_sizehint
         self.const_index = 0
+        self.next = None
 
     def reset(self):
         self.index = self.const_index = 0
+
+    @staticmethod
+    def new(sizehint=10, const_sizehint=5):
+        if mem_manager.unused_program is not None:
+            res = mem_manager.unused_program
+            mem_manager.unused_program = res.next
+            res.next = None
+            res.reset()
+            return res
+        return ProgramBuilder(sizehint, const_sizehint)
+
+    def delete(self):
+        self.program = None
+        self.next = mem_manager.unused_program
+        mem_manager.unused_program = self
 
     def add_const(self, const, name=None):
         arg = self.const_index
@@ -67,8 +83,8 @@ class ProgramBuilder(object):
         return res
 
     def finish(self):
-        res = Program(self.funcs[:self.index], self.arguments[:2*self.index], self.consts[:self.const_index])
-        return res
+        import pdb;pdb.set_trace()
+        return self
 
     @objectmodel.always_inline
     def get_func(self, index):
@@ -86,45 +102,9 @@ class ProgramBuilder(object):
     def num_operations(self):
         return self.index
 
-    def op_to_str(self, i):
-        return self.finish().op_to_str(i)
-
-    def __str__(self):
-        return self.finish().pretty_format()
-
-    def __iter__(self):
-        return iter(range(self.num_operations()))
-
-
-class Program(object):
-    def __init__(self, funcs, arguments, consts):
-        self.funcs = funcs
-        self.arguments = arguments
-        self.consts = consts
-
-    def num_operations(self):
-        return len(self.funcs)
-
     def size_storage(self):
         return self.num_operations() # for now
 
-    @objectmodel.always_inline
-    def get_func(self, index):
-        return self.get_func_and_args(index)[0]
-
-    @objectmodel.always_inline
-    def get_func_and_args(self, index):
-        return self.funcs[index], self.arguments[index*2], self.arguments[index*2 + 1]
-
-    @objectmodel.always_inline
-    def get_args(self, index):
-        return self.arguments[index*2], self.arguments[index*2 + 1]
-
-    def pretty_format(self):
-        result = []
-        for i in range(self.num_operations()):
-            self._op_to_str(i, result)
-        return "\n".join(result)
 
     def op_to_str(self, i):
         r = []
@@ -139,11 +119,18 @@ class Program(object):
         else:
             result.append("_%x %s _%x _%x" % (i, func, arg0, arg1))
 
+    def pretty_format(self):
+        result = []
+        for i in range(self.num_operations()):
+            self._op_to_str(i, result)
+        return "\n".join(result)
+
     def __str__(self):
         return self.pretty_format()
 
     def __iter__(self):
         return iter(range(self.num_operations()))
+
 
 class Frame(object):
     @jit.unroll_safe
@@ -191,19 +178,46 @@ class Frame(object):
         else:
             raise ValueError("Invalid operation: %s" % op)
 
+
+class MemManager(object):
+    unused_frame = None
+    unused_program = None
+
+mem_manager = MemManager()
+
+
 class DirectFrame(object):
     objectmodel.import_from_mixin(Frame)
 
     def __init__(self, program):
         self.program = program
         self.floatvalues = None
+        self.next = None
+
+    def _reset(self, program):
+        self.program = program
+
+    @staticmethod
+    def new(program):
+        if mem_manager.unused_frame is not None:
+            res = mem_manager.unused_frame
+            mem_manager.unused_frame = res.next
+            res.next = None
+            res._reset(program)
+            return res
+        return DirectFrame(program)
+
+    def delete(self):
+        self.program = None
+        self.next = mem_manager.unused_frame
+        mem_manager.unused_frame = self
 
     def run_floats(self, x, y, z):
         self.setxyz(x, y, z)
         return self.run()
 
     def setup(self, length):
-        if self.floatvalues and len(self.floatvalues) == length and not jit.we_are_jitted():
+        if self.floatvalues and len(self.floatvalues) >= length and not jit.we_are_jitted():
             return
         self.floatvalues = [0.0] * length
 
@@ -217,12 +231,14 @@ class DirectFrame(object):
         program = self.program
         jit.promote(program)
         num_ops = program.num_operations()
-        self.setup(num_ops)
-        stats.ops_executed += num_ops
         floatvalues = self.floatvalues
+        if floatvalues and len(floatvalues) >= num_ops and not jit.we_are_jitted():
+            pass
+        else:
+            floatvalues = self.floatvalues = [0.0] * num_ops
+        stats.ops_executed += num_ops
         for op in range(num_ops):
-            func = program.get_func(op)
-            arg0, arg1 = program.get_args(op)
+            func, arg0, arg1 = program.get_func_and_args(op)
             if func == OPS.const:
                 floatvalues[op] = program.consts[arg0]
                 continue
@@ -604,8 +620,10 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
 
     # check whether area is small enough to switch to naive evaluation
     if direct:
-        frame = DirectFrame(newprogram)
+        frame = DirectFrame.new(newprogram)
         render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
+        frame.delete()
+        newprogram.delete()
         return
     if newprogram.num_operations() < 500:
         driver_octree_optimize.jit_merge_point(program=newprogram)
@@ -616,6 +634,7 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
             if not objectmodel.we_are_translated():
                 print("====================================", level, new_startx, new_stopx, new_starty, new_stopy)
             render_image_octree_rec_optimize(newprogram, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
+    newprogram.delete()
 
 def render_image_octree_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy):
     result = ['\x00'] * (width * height)
@@ -654,10 +673,11 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
 
     # check whether area is small enough to switch to naive evaluation
     if direct:
-        frame = DirectFrame(newprogram)
         direct_label = node_label(startx, stopx, starty, stopy, 'd')
         t1 = time.time()
+        frame = DirectFrame.new(newprogram)
         render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
+        frame.delete()
         t2 = time.time()
         descr.append('time native: %s' % (t2 - t1))
         output.append('%s [fillcolor=yellow, label="%s", shape=box];' % (

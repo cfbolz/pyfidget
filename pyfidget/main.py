@@ -1,5 +1,5 @@
 import time
-from pyfidget.vm import render_image_naive, render_image_octree, write_ppm, DirectFrame, IntervalFrame, Program, \
+from pyfidget.vm import render_image_naive, render_image_octree, write_ppm, DirectFrame, IntervalFrame, \
         render_image_octree_optimize, render_image_octree_optimize_graphviz
 from pyfidget.parse import parse
 from pyfidget.optimize import stats
@@ -33,14 +33,18 @@ def main(argv):
             phase = int(argv[4])
     else:
         length = 1024
+    preallocated_frame = DirectFrame.new(operations)
+    preallocated_frame.setup(operations.num_operations())
+    preallocated_frame.delete()
     t1 = time.time()
     args = -1., 1., -1., 1.
     if we_are_translated():
         args = NonConstant(-1.), NonConstant(1.), NonConstant(-1.), NonConstant(1.)
     data = None
     if phase == 0 or phase == 1:
-        frame = DirectFrame(operations)
+        frame = DirectFrame.new(operations)
         data = render_image_naive(frame, length // 2, length // 2, *args)
+        frame.delete()
         t2 = time.time()
         print("time, naive: %s (scaled)" % ((t2 - t1) * 4))
     if phase == 0 or phase == 2:

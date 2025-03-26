@@ -6,7 +6,7 @@ from hypothesis import given, strategies, assume
 
 from pyfidget.optimize import optimize, convert_to_shortcut
 from pyfidget.parse import parse
-from pyfidget.vm import Program, ProgramBuilder, DirectFrame
+from pyfidget.vm import ProgramBuilder, DirectFrame
 from pyfidget.vm import IntervalFrame
 from pyfidget.operations import OPS
 
@@ -476,7 +476,7 @@ def test_random(data):
         else:
             args = [prev_op, arg0]
         prev_op = ops.add_op(OPS.get(func), *args)
-    program = ops.finish()
+    program = ops
     frame = DirectFrame(program)
     resultops, minimum, maximum = optimize(program, minx, maxx, miny, maxy, 0.0, 0.0)
     if resultops:
