@@ -215,11 +215,44 @@ class DirectFrame(object):
         num_ops = program.num_operations()
         self.setup(num_ops)
         stats.ops_executed += num_ops
+        floatvalues = self.floatvalues
         for op in range(num_ops):
-            if jit.we_are_jitted():
-                jit.jit_debug(program.op_to_str(op))
             func = program.get_func(op)
-            res = self._run_op(op, OPS.mask(func))
+            arg0, arg1 = program.get_args(op)
+            if func == OPS.const:
+                floatvalues[op] = program.consts[arg0]
+                continue
+            bare_func = OPS.mask(func)
+            if bare_func == OPS.const:
+                res = program.consts[arg0]
+            elif bare_func == OPS.var_x:
+                res = self.x
+            elif bare_func == OPS.var_y:
+                res = self.y
+            elif bare_func == OPS.var_z:
+                res = self.z
+            elif bare_func == OPS.add:
+                res = self.add(arg0, arg1)
+            elif bare_func == OPS.sub:
+                res = self.sub(arg0, arg1)
+            elif bare_func == OPS.mul:
+                res = self.mul(arg0, arg1)
+            elif bare_func == OPS.max:
+                res = self.max(arg0, arg1)
+            elif bare_func == OPS.min:
+                res = self.min(arg0, arg1)
+            elif bare_func == OPS.square:
+                res = self.square(arg0)
+            elif bare_func == OPS.sqrt:
+                res = self.sqrt(arg0)
+            elif bare_func == OPS.exp:
+                res = self.exp(arg0)
+            elif bare_func == OPS.neg:
+                res = self.neg(arg0)
+            elif bare_func == OPS.abs:
+                res = self.abs(arg0)
+            else:
+                assert 0
             if OPS.should_return_if_neg(func):
                 if res <= 0.0:
                     stats.ops_skipped += num_ops - op - 1
@@ -228,85 +261,41 @@ class DirectFrame(object):
                 if res > 0.0:
                     stats.ops_skipped += num_ops - op - 1
                     return res
+            floatvalues[op] = res
         return self.floatvalues[self.program.size_storage() - 1]
 
     def _run_op(self, op, func):
         program = self.program
-        arg0, arg1 = program.get_args(op)
-        if func == OPS.const:
-            res = self.make_constant(program.consts[arg0], op)
-        elif func == OPS.var_x:
-            res = self.get_x(op)
-        elif func == OPS.var_y:
-            res = self.get_y(op)
-        elif func == OPS.var_z:
-            res = self.get_z(op)
-        elif func == OPS.add:
-            res = self.add(arg0, arg1, op)
-        elif func == OPS.sub:
-            res = self.sub(arg0, arg1, op)
-        elif func == OPS.mul:
-            res = self.mul(arg0, arg1, op)
-        elif func == OPS.max:
-            res = self.max(arg0, arg1, op)
-        elif func == OPS.min:
-            res = self.min(arg0, arg1, op)
-        elif func == OPS.square:
-            res = self.square(arg0, op)
-        elif func == OPS.sqrt:
-            res = self.sqrt(arg0, op)
-        elif func == OPS.exp:
-            res = self.exp(arg0, op)
-        elif func == OPS.neg:
-            res = self.neg(arg0, op)
-        elif func == OPS.abs:
-            res = self.abs(arg0, op)
-        else:
-            raise ValueError("Invalid operation: %s" % op)
-        self.floatvalues[op] = res
-        return res
 
-    def get_x(self, resindex):
-        return self.x
-
-    def get_y(self, resindex):
-        return self.y
-
-    def get_z(self, resindex):
-        return self.z
-
-    def make_constant(self, const, resindex):
-        return const
-
-    def add(self, arg0index, arg1index, resindex):
+    def add(self, arg0index, arg1index):
         return self.floatvalues[arg0index] + self.floatvalues[arg1index]
 
-    def sub(self, arg0index, arg1index, resindex):
+    def sub(self, arg0index, arg1index):
         return self.floatvalues[arg0index] - self.floatvalues[arg1index]
 
-    def mul(self, arg0index, arg1index, resindex):
+    def mul(self, arg0index, arg1index):
         return self.floatvalues[arg0index] * self.floatvalues[arg1index]
 
-    def max(self, arg0index, arg1index, resindex):
+    def max(self, arg0index, arg1index):
         return max(self.floatvalues[arg0index], self.floatvalues[arg1index])
 
-    def min(self, arg0index, arg1index, resindex):
+    def min(self, arg0index, arg1index):
         return min(self.floatvalues[arg0index], self.floatvalues[arg1index])
 
-    def square(self, arg0index, resindex):
+    def square(self, arg0index):
         val = self.floatvalues[arg0index]
         return val*val
 
-    def sqrt(self, arg0index, resindex):
+    def sqrt(self, arg0index):
         return math.sqrt(self.floatvalues[arg0index])
 
-    def exp(self, arg0index, resindex):
+    def exp(self, arg0index):
         return math.exp(self.floatvalues[arg0index])
 
-    def neg(self, arg0index, resindex):
+    def neg(self, arg0index):
         return -self.floatvalues[arg0index]
 
-    def abs(self, arg0index, resindex):
+    def abs(self, arg0index):
         return abs(self.floatvalues[arg0index])
 
 def float_choose(cond, iftrue, iffalse):
