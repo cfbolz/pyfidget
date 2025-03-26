@@ -403,17 +403,17 @@ def test_min_max_interleave_backwards():
 a var-x
 b var-y
 c var-z
-out max c b
-out2 min out a
+out max c a
+out2 min out b
 """
     program = parse(program)
     convert_to_shortcut(program, 4)
     assert program.pretty_format() == """\
-_0 var-x return_if_neg _0 _0
-_1 var-y _0 _0
-_2 var-z _0 _0
-_3 max return_if_neg _2 _1
-_4 min return_if_neg _3 _0\
+_0 var-x _0 _0
+_1 var-y return_if_neg _0 _0
+_2 var-z return_if_pos _0 _0
+_3 max return_if_pos _2 _0
+_4 min return_if_neg _3 _1\
 """
 
 # ____________________________________________________________
