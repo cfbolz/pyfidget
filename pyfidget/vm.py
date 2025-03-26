@@ -209,10 +209,12 @@ class DirectFrame(object):
         self.z = z
 
     def run(self):
+        from pyfidget.optimize import stats
         program = self.program
         jit.promote(program)
         num_ops = program.num_operations()
         self.setup(num_ops)
+        stats.ops_executed += num_ops
         for op in range(num_ops):
             if jit.we_are_jitted():
                 jit.jit_debug(program.op_to_str(op))
@@ -220,6 +222,11 @@ class DirectFrame(object):
             res = self._run_op(op, OPS.mask(func))
             if OPS.should_return_if_neg(func):
                 if res <= 0.0:
+                    stats.ops_skipped += num_ops - op - 1
+                    return res
+            if OPS.should_return_if_pos(func):
+                if res > 0.0:
+                    stats.ops_skipped += num_ops - op - 1
                     return res
         return self.floatvalues[self.program.size_storage() - 1]
 
@@ -623,7 +630,8 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
     before_opt = frame.program.num_operations()
     t1 = time.time()
-    newprogram, minimum, maximum = opt_program(frame.program, a, b, c, d, 0.0, 0.0)
+    direct = stopx - startx <= LIMIT or stopy - starty <= LIMIT
+    newprogram, minimum, maximum = opt_program(frame.program, a, b, c, d, 0.0, 0.0, for_direct=direct)
     t2 = time.time()
     label = node_label(startx, stopx, starty, stopy)
     descr = ['%s-%s, %s-%s' % (startx, stopx, starty, stopy),
@@ -640,7 +648,7 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
     descr.append('size program %s (before opt: %s)' % (frame.program.num_operations(), before_opt))
 
     # check whether area is small enough to switch to naive evaluation
-    if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
+    if direct:
         frame = DirectFrame(newprogram)
         direct_label = node_label(startx, stopx, starty, stopy, 'd')
         t1 = time.time()

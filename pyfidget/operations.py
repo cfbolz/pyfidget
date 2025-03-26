@@ -1,11 +1,17 @@
 class Opnums(object):
     RETURN_IF_NEG = 0x80
+    RETURN_IF_POS = 0x40
 
     def get(self, name):
         return opname_to_char[name]
 
     def char_to_name(self, char):
-        return opnames[self.mask_to_int(char)] + ("_ret_if_neg" if ord(char) & 0x80 else "")
+        res = opnames[self.mask_to_int(char)]
+        if self.should_return_if_neg(char):
+            res += " return_if_neg"
+        if self.should_return_if_pos(char):
+            res += " return_if_pos"
+        return res
 
     def num_args(self, char):
         return numargs[self.mask_to_int(char)]
@@ -14,13 +20,20 @@ class Opnums(object):
         return is_symmetric[self.mask_to_int(char)]
 
     def mask_to_int(self, char):
-        return ord(char) & 0x7f
+        return ord(char) & 0x3f
 
     def mask(self, char):
-        return chr(ord(char) & 0x7f)
+        return chr(ord(char) & 0x3f)
+
+    def add_flag(self, char, flag):
+        return chr(ord(char) | flag)
 
     def should_return_if_neg(self, char):
-        return ord(char) & 0x80
+        return ord(char) & self.RETURN_IF_NEG
+
+    def should_return_if_pos(self, char):
+        return ord(char) & self.RETURN_IF_POS
+
 
 opname_to_char = {}
 opnames = []

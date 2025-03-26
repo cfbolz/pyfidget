@@ -10,11 +10,10 @@ from pyfidget.vm import ProgramBuilder, IntervalFrame
 def isfinite(val):
     return not math.isinf(val) and not math.isnan(val)
 
-def optimize(program, a, b, c, d, e, f, for_direct=False):
+def optimize(program, a, b, c, d, e, f, for_direct=True):
+    for_direct = True
     opt = Optimizer.new(program)
-    opt.optimize(a, b, c, d, e, f)
-    resindex = program.num_operations() - 1
-    result = opt.opreplacements[resindex]
+    result = opt.optimize(a, b, c, d, e, f)
     resultops = opt.resultops
     minimum = opt.intervalframe.minvalues[result]
     maximum = opt.intervalframe.maxvalues[result]
@@ -23,7 +22,7 @@ def optimize(program, a, b, c, d, e, f, for_direct=False):
         return None, minimum, maximum
     result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues, for_direct=for_direct)
     res = opt.dce(result)
-    if for_direct:
+    if not objectmodel.we_are_translated() and for_direct:
         print(res.pretty_format())
     opt.delete()
     #if not objectmodel.we_are_translated():
@@ -74,7 +73,13 @@ class Stats(object):
     mul1 = 0
     mul_neg1 = 0
 
-    ops = [0] * 15
+    ops_executed = 0
+    ops_skipped = 0
+    ops_optimized = 0
+    ops_optimized_checked = 0
+    ops_optimized_skipped = 0
+
+    ops = [0] * 14
 
     def print_stats(self):
         print('total_ops', self.total_ops)
@@ -105,6 +110,13 @@ class Stats(object):
 
         for index, value in enumerate(self.ops):
             print(OPS.char_to_name(chr(index)), value)
+
+        print()
+        print('ops_executed', self.ops_executed)
+        print('ops_skipped', self.ops_skipped)
+        print('ops_optimized', self.ops_optimized)
+        print('ops_optimized_checked', self.ops_optimized_checked)
+        print('ops_optimized_skipped', self.ops_optimized_skipped)
 
 
 stats = Stats()
@@ -179,13 +191,25 @@ class Optimizer(object):
         program = self.program
         self.intervalframe.setup(self.program.num_operations())
         self.intervalframe.setxyz(a, b, c, d, e, f)
-
-        for index in range(program.num_operations()):
+        numops = program.num_operations()
+        stats.ops_optimized += numops
+        for index in range(numops):
             stats.total_ops += 1
             func = program.get_func(index)
-            stats.ops[ord(func)] += 1
-            newop = self._optimize_op(index, func)
+            stats.ops[OPS.mask_to_int(func)] += 1
+            newop = self._optimize_op(index, OPS.mask(func))
+            if OPS.should_return_if_pos(func):
+                stats.ops_optimized_checked += 1
+                if self.intervalframe.minvalues[newop] > 0:
+                    stats.ops_optimized_skipped += numops - index - 1
+                    return newop
+            if OPS.should_return_if_neg(func):
+                stats.ops_optimized_checked += 1
+                if self.intervalframe.maxvalues[newop] <= 0.0:
+                    stats.ops_optimized_skipped += numops - index - 1
+                    return newop
             self.opreplacements[index] = newop
+        return self.opreplacements[numops - 1]
 
     def opt_default(self, func, minimum, maximum, arg0=0, arg1=0):
         if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
@@ -424,11 +448,19 @@ class Optimizer(object):
             index += 1
         return ops.finish()
 
+def convert_to_shortcut(resultops, op):
+    func = OPS.mask(resultops.get_func(op))
+    if func == OPS.min:
+        return convert_min_to_shortcut(resultops, op)
+    elif func == OPS.max:
+        return convert_max_to_shortcut(resultops, op)
+    return 0
+
 def convert_min_to_shortcut(resultops, op):
     converted = 0
     while 1:
-        func = resultops.get_func(op)
-        resultops.funcs[op] = chr(ord(func) | 0x80)
+        func = OPS.mask(resultops.get_func(op))
+        resultops.funcs[op] = OPS.add_flag(func, OPS.RETURN_IF_NEG)
         if func == OPS.min:
             converted += 1
             op, arg1 = resultops.get_args(op)
@@ -436,6 +468,20 @@ def convert_min_to_shortcut(resultops, op):
             continue
         break
     return converted
+
+def convert_max_to_shortcut(resultops, op):
+    converted = 0
+    while 1:
+        func = OPS.mask(resultops.get_func(op))
+        resultops.funcs[op] = OPS.add_flag(func, OPS.RETURN_IF_POS)
+        if func == OPS.max:
+            converted += 1
+            op, arg1 = resultops.get_args(op)
+            converted += convert_max_to_shortcut(resultops, arg1)
+            continue
+        break
+    return converted
+
 
 def work_backwards(resultops, result, minvalues, maxvalues, for_direct=False):
     #if not objectmodel.we_are_translated():
@@ -469,5 +515,5 @@ def work_backwards(resultops, result, minvalues, maxvalues, for_direct=False):
         if not objectmodel.we_are_translated():
             print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
     if for_direct:
-        converted = convert_min_to_shortcut(resultops, otherop)
+        converted = convert_to_shortcut(resultops, otherop)
     return otherop
