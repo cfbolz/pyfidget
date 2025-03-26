@@ -73,6 +73,8 @@ class Stats(object):
     mul1 = 0
     mul_neg1 = 0
 
+    backwards_shortening = 0
+
     ops_executed = 0
     ops_skipped = 0
     ops_optimized = 0
@@ -106,6 +108,8 @@ class Stats(object):
         print('mul0', self.mul0)
         print('mu1', self.mul1)
         print('mul_neg1', self.mul_neg1)
+        print()
+        print('backwards_shortening', self.backwards_shortening)
         print()
 
         for index, value in enumerate(self.ops):
@@ -514,6 +518,7 @@ def work_backwards(resultops, result, minvalues, maxvalues, for_direct=False):
     if result != otherop:
         if not objectmodel.we_are_translated():
             print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
+    stats.backwards_shortening += result - otherop
     if for_direct:
         converted = convert_to_shortcut(resultops, otherop)
     return otherop
