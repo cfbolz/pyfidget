@@ -70,25 +70,16 @@ class ProgramBuilder(object):
         res = Program(self.funcs[:self.index], self.arguments[:2*self.index], self.consts[:self.const_index])
         return res
 
-    def get_func(self, index):
+    def get_func_and_args(self, index):
         assert index < self.index
-        return self.funcs[index]
+        return self.funcs[index], self.arguments[index*2], self.arguments[index*2 + 1]
 
     def num_operations(self):
         return self.index
 
-    def get_func(self, index):
-        assert index < self.index
-        return self.funcs[index]
-    
-    @objectmodel.always_inline
-    def get_args(self, index):
-        assert index < self.index
-        return self.arguments[index*2], self.arguments[index*2 + 1]
-
     def op_to_str(self, i):
         return self.finish().op_to_str(i)
-    
+
     def __str__(self):
         return self.finish().pretty_format()
 
@@ -101,16 +92,19 @@ class Program(object):
         self.funcs = funcs
         self.arguments = arguments
         self.consts = consts
-    
+
     def num_operations(self):
         return len(self.funcs)
 
     def size_storage(self):
         return self.num_operations() # for now
-    
+
     def get_func(self, index):
-        return self.funcs[index]
-    
+        return self.get_func_and_args(index)[0]
+
+    def get_func_and_args(self, index):
+        return self.funcs[index], self.arguments[index*2], self.arguments[index*2 + 1]
+
     @objectmodel.always_inline
     def get_args(self, index):
         return self.arguments[index*2], self.arguments[index*2 + 1]
@@ -127,8 +121,8 @@ class Program(object):
         return r[0]
 
     def _op_to_str(self, i, result):
-        func = OPS.char_to_name(self.get_func(i))
-        arg0, arg1 = self.get_args(i)
+        func, arg0, arg1 = self.get_func_and_args(i)
+        func = OPS.char_to_name(func)
         if func == "const":
             result.append("_%x const %s" % (i, self.consts[arg0]))
         else:
@@ -151,11 +145,10 @@ class Frame(object):
             if jit.we_are_jitted():
                 jit.jit_debug(program.op_to_str(op))
             self._run_op(op)
-    
+
     def _run_op(self, op):
         program = self.program
-        func = program.get_func(op)
-        arg0, arg1 = program.get_args(op)
+        func, arg0, arg1 = program.get_func_and_args(op)
         if func == OPS.const:
             self.make_constant(program.consts[arg0], op)
         elif func == OPS.var_x:

@@ -159,9 +159,6 @@ class Optimizer(object):
     def get_replacement(self, op):
         return self.opreplacements[op]
 
-    def getarg(self, op, index):
-        return self.resultops.get_args(op)[index]
-
     def newop(self, func, arg0=0, arg1=0):
         return self.resultops.add_op(func, arg0, arg1)
 
@@ -182,9 +179,7 @@ class Optimizer(object):
 
         for index in range(program.num_operations()):
             stats.total_ops += 1
-            func = program.get_func(index)
-            stats.ops[ord(func)] += 1
-            newop = self._optimize_op(index, func)
+            newop = self._optimize_op(index)
             self.opreplacements[index] = newop
 
     def opt_default(self, func, minimum, maximum, arg0=0, arg1=0):
@@ -192,8 +187,8 @@ class Optimizer(object):
             stats.constfold += 1
             newop = self.newconst(minimum)
         else:
-            newop = self.cse(func, arg0, arg1)
-            if newop < 0:
+            #newop = self.cse(func, arg0, arg1)
+            #if newop < 0:
                 newop = self.newop(func, arg0, arg1)
         self.intervalframe._set(newop, minimum, maximum)
         return newop
@@ -212,9 +207,11 @@ class Optimizer(object):
                 return index
         return -1
 
-    def _optimize_op(self, op, func):
+    def _optimize_op(self, op):
         program = self.program
         intervalframe = self.intervalframe
+        func, arg0, arg1 = program.get_func_and_args(op)
+        stats.ops[ord(func)] += 1
         if func == OPS.var_x:
             minimum = self.intervalframe.minx
             maximum = self.intervalframe.maxx
@@ -227,7 +224,6 @@ class Optimizer(object):
             minimum = self.intervalframe.minz
             maximum = self.intervalframe.maxz
             return self.opt_default(OPS.var_z, minimum, maximum)
-        arg0, arg1 = program.get_args(op)
         if func == OPS.const:
             const = program.consts[arg0]
             return self.newconst(const)
@@ -271,20 +267,20 @@ class Optimizer(object):
         if arg0maximum < 0:
             stats.abs_neg += 1
             return self.opt_neg(op, arg0, arg0minimum, arg0maximum)
-        if self.resultops.get_func(arg0) == OPS.neg:
+        func, arg0arg0, _ = self.resultops.get_func_and_args(arg0)
+        if func == OPS.neg:
             stats.abs_of_neg += 1
-            arg0 = self.getarg(arg0, 0)
-            minimum, maximum = self.intervalframe.minvalues[arg0], self.intervalframe.maxvalues[arg0]
-            return self.opt_abs(op, arg0, minimum, maximum)
+            minimum, maximum = self.intervalframe.minvalues[arg0arg0], self.intervalframe.maxvalues[arg0arg0]
+            return self.opt_abs(op, arg0arg0, minimum, maximum)
         minimum, maximum = self.intervalframe._abs(arg0minimum, arg0maximum)
         return self.opt_default(OPS.abs, minimum, maximum, arg0)
 
     def opt_square(self, op, arg0, arg0minimum, arg0maximum):
-        if self.resultops.get_func(arg0) == OPS.neg:
+        func, arg0arg0, _ = self.resultops.get_func_and_args(arg0)
+        if func == OPS.neg:
             stats.square_of_neg += 1
-            arg0 = self.getarg(arg0, 0)
-            minimum, maximum = self.intervalframe.minvalues[arg0], self.intervalframe.maxvalues[arg0]
-            return self.opt_square(op, arg0, minimum, maximum)
+            minimum, maximum = self.intervalframe.minvalues[arg0arg0], self.intervalframe.maxvalues[arg0arg0]
+            return self.opt_square(op, arg0arg0, minimum, maximum)
         minimum, maximum = self.intervalframe._square(arg0minimum, arg0maximum)
         return self.opt_default(OPS.square, minimum, maximum, arg0)
 
@@ -293,9 +289,10 @@ class Optimizer(object):
         return self.opt_default(OPS.sqrt, minimum, maximum, arg0)
 
     def opt_neg(self, op, arg0, arg0minimum, arg0maximum):
-        if self.resultops.get_func(arg0) == OPS.neg:
+        func, arg0arg0, _ = self.resultops.get_func_and_args(arg0)
+        if func == OPS.neg:
             stats.neg_neg += 1
-            return self.getarg(arg0, 0)
+            return arg0arg0
         minimum, maximum = self.intervalframe._neg(arg0minimum, arg0maximum)
         return self.opt_default(OPS.neg, minimum, maximum, arg0)
 
@@ -327,9 +324,9 @@ class Optimizer(object):
         if arg0 == arg1:
             stats.min_self += 1
             return arg0
-        if self.resultops.get_func(arg0) == OPS.min:
+        func, arg0arg0, arg0arg1 = self.resultops.get_func_and_args(arg0)
+        if func == OPS.min:
             # min(a, min(a, b)) -> min(a, b)
-            arg0arg0, arg0arg1 = self.resultops.get_args(arg0)
             if arg0arg0 == arg1 or arg0arg1 == arg1:
                 stats.min_min_self += 1
                 return arg0
@@ -343,9 +340,9 @@ class Optimizer(object):
         if arg0 == arg1:
             stats.max_self += 1
             return arg0
-        if self.resultops.get_func(arg0) == OPS.max:
+        func, arg0arg0, arg0arg1 = self.resultops.get_func_and_args(arg0)
+        if func == OPS.max:
             # max(a, max(a, b)) -> max(a, b)
-            arg0arg0, arg0arg1 = self.resultops.get_args(arg0)
             if arg0arg0 == arg1 or arg0arg1 == arg1:
                 stats.max_max_self += 1
                 return arg0
@@ -383,8 +380,7 @@ class Optimizer(object):
             if new_positions[index] < 0:
                 continue
             alive_ops += 1
-            args = ops.get_args(index)
-            func = ops.get_func(index)
+            func, arg0, arg1 = ops.get_func_and_args(index)
             if func == OPS.const:
                 alive_consts += 1
                 continue
@@ -392,7 +388,6 @@ class Optimizer(object):
             if numargs == 0:
                 pass
             else:
-                arg0, arg1 = ops.get_args(index)
                 if numargs == 1:
                     mark_alive(new_positions, arg0)
                 else:
@@ -431,11 +426,10 @@ def work_backwards(resultops, result, minvalues, maxvalues):
     #        print(resultops.op_to_str(op), minvalues[op], maxvalues[op])
     def check_gt(resultops, op, minvalues, maxvalues, check_gt, val=0.0):
         while 1:
-            func = resultops.get_func(op)
+            func, arg0, arg1 = resultops.get_func_and_args(op)
             #if not objectmodel.we_are_translated():
             #    print("round!", OPS.char_to_name(func), "_%x" % op, minvalues[op], maxvalues[op])
             if func == OPS.max:
-                arg0, arg1 = resultops.get_args(op)
                 narg0 = check_gt(resultops, arg0, minvalues, maxvalues, check_gt, val)
                 if narg0 != arg0:
                     resultops.arguments[op * 2 + 0] = narg0
@@ -443,7 +437,6 @@ def work_backwards(resultops, result, minvalues, maxvalues):
                 if narg1 != arg1:
                     resultops.arguments[op * 2 + 1] = narg1
             if func == OPS.min:
-                arg0, arg1 = resultops.get_args(op)
                 if minvalues[arg0] > val:
                     op = arg1
                     continue
@@ -453,7 +446,7 @@ def work_backwards(resultops, result, minvalues, maxvalues):
             break
         return op
     otherop = check_gt(resultops, result, minvalues, maxvalues, check_gt)
-    if result != otherop:
+    #if result != otherop:
         #if not objectmodel.we_are_translated():
         #    print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
     return otherop
