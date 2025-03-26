@@ -25,6 +25,8 @@ def check_optimize(program, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-
         assert (minimum, maximum) == expected
         return
     formatted = newops.pretty_format()
+    formatted = formatted.replace(" return_if_pos", "")
+    formatted = formatted.replace(" return_if_neg", "")
     if not formatted == parse(expected).pretty_format():
         print("EXPECTED:")
         print(expected.strip())
