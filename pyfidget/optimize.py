@@ -10,7 +10,7 @@ from pyfidget.vm import ProgramBuilder, IntervalFrame
 def isfinite(val):
     return not math.isinf(val) and not math.isnan(val)
 
-def optimize(program, a, b, c, d, e, f):
+def optimize(program, a, b, c, d, e, f, for_direct=False):
     opt = Optimizer.new(program)
     opt.optimize(a, b, c, d, e, f)
     resindex = program.num_operations() - 1
@@ -21,17 +21,17 @@ def optimize(program, a, b, c, d, e, f):
     if (isfinite(minimum) and isfinite(maximum)) and (minimum > 0.0 or maximum <= 0):
         opt.delete()
         return None, minimum, maximum
-    result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues)
+    result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues, for_direct=for_direct)
     res = opt.dce(result)
+    if for_direct:
+        print(res.pretty_format())
     opt.delete()
     #if not objectmodel.we_are_translated():
     #    print("length before", program.num_operations(), "len after", res.num_operations())
     #    print(res)
     return res, minimum, maximum
 
-@jit.dont_look_inside
-def opt_program(*args):
-    return optimize(*args)
+opt_program = optimize
 
 def symmetric(func):
     name = func.func_name[len('opt_'):]
@@ -74,7 +74,7 @@ class Stats(object):
     mul1 = 0
     mul_neg1 = 0
 
-    ops = [0] * 14
+    ops = [0] * 15
 
     def print_stats(self):
         print('total_ops', self.total_ops)
@@ -192,8 +192,8 @@ class Optimizer(object):
             stats.constfold += 1
             newop = self.newconst(minimum)
         else:
-            newop = self.cse(func, arg0, arg1)
-            if newop < 0:
+            #newop = self.cse(func, arg0, arg1)
+            #if newop < 0:
                 newop = self.newop(func, arg0, arg1)
         self.intervalframe._set(newop, minimum, maximum)
         return newop
@@ -424,8 +424,20 @@ class Optimizer(object):
             index += 1
         return ops.finish()
 
+def convert_min_to_shortcut(resultops, op):
+    converted = 0
+    while 1:
+        func = resultops.get_func(op)
+        resultops.funcs[op] = chr(ord(func) | 0x80)
+        if func == OPS.min:
+            converted += 1
+            op, arg1 = resultops.get_args(op)
+            converted += convert_min_to_shortcut(resultops, arg1)
+            continue
+        break
+    return converted
 
-def work_backwards(resultops, result, minvalues, maxvalues):
+def work_backwards(resultops, result, minvalues, maxvalues, for_direct=False):
     #if not objectmodel.we_are_translated():
     #    for op in resultops:
     #        print(resultops.op_to_str(op), minvalues[op], maxvalues[op])
@@ -454,6 +466,8 @@ def work_backwards(resultops, result, minvalues, maxvalues):
         return op
     otherop = check_gt(resultops, result, minvalues, maxvalues, check_gt)
     if result != otherop:
-        #if not objectmodel.we_are_translated():
-        #    print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
+        if not objectmodel.we_are_translated():
+            print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
+    if for_direct:
+        converted = convert_min_to_shortcut(resultops, otherop)
     return otherop

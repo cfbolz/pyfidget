@@ -3,10 +3,10 @@ class Opnums(object):
         return opname_to_char[name]
 
     def char_to_name(self, char):
-        return opnames[ord(char)]
+        return opnames[ord(char) & 0x7f] + ("_ret_if_neg" if ord(char) & 0x80 else "")
 
     def num_args(self, char):
-        return numargs[ord(char)]
+        return numargs[ord(char) & 0x7f]
 
     def is_symmetric(self, char):
         return is_symmetric[ord(char)]

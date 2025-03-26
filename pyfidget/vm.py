@@ -196,8 +196,7 @@ class DirectFrame(object):
 
     def run_floats(self, x, y, z):
         self.setxyz(x, y, z)
-        self.run()
-        return self.floatvalues[self.program.size_storage() - 1]
+        return self.run()
 
     def setup(self, length):
         if self.floatvalues and len(self.floatvalues) == length and not jit.we_are_jitted():
@@ -208,6 +207,56 @@ class DirectFrame(object):
         self.x = x
         self.y = y
         self.z = z
+
+    def run(self):
+        program = self.program
+        jit.promote(program)
+        num_ops = program.num_operations()
+        self.setup(num_ops)
+        for op in range(num_ops):
+            if jit.we_are_jitted():
+                jit.jit_debug(program.op_to_str(op))
+            func = ord(program.get_func(op))
+            self._run_op(op, chr(func & 0x7f))
+            if func & 0x80:
+                res = self.floatvalues[op]
+                if res <= 0.0:
+                    return res
+        return self.floatvalues[self.program.size_storage() - 1]
+
+    def _run_op(self, op, func):
+        program = self.program
+        arg0, arg1 = program.get_args(op)
+        if func == OPS.const:
+            self.make_constant(program.consts[arg0], op)
+        elif func == OPS.var_x:
+            self.get_x(op)
+        elif func == OPS.var_y:
+            self.get_y(op)
+        elif func == OPS.var_z:
+            self.get_z(op)
+        elif func == OPS.add:
+            self.add(arg0, arg1, op)
+        elif func == OPS.sub:
+            self.sub(arg0, arg1, op)
+        elif func == OPS.mul:
+            self.mul(arg0, arg1, op)
+        elif func == OPS.max:
+            self.max(arg0, arg1, op)
+        elif func == OPS.min:
+            self.min(arg0, arg1, op)
+        elif func == OPS.square:
+            self.square(arg0, op)
+        elif func == OPS.sqrt:
+            self.sqrt(arg0, op)
+        elif func == OPS.exp:
+            self.exp(arg0, op)
+        elif func == OPS.neg:
+            self.neg(arg0, op)
+        elif func == OPS.abs:
+            self.abs(arg0, op)
+        else:
+            raise ValueError("Invalid operation: %s" % op)
 
     def get_x(self, resindex):
         self.floatvalues[resindex] = self.x
@@ -528,7 +577,9 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
     b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
     c = miny + (maxy - miny) * starty / (height - 1)
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
-    newprogram, minimum, maximum = opt_program(program, a, b, c, d, 0.0, 0.0)
+
+    direct = stopx - startx <= LIMIT or stopy - starty <= LIMIT
+    newprogram, minimum, maximum = opt_program(program, a, b, c, d, 0.0, 0.0, for_direct=direct)
     if maximum < 0:
         # completely inside
         _fill_black(width, height, result, startx, stopx, starty, stopy)
@@ -539,7 +590,7 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
     assert newprogram is not None
 
     # check whether area is small enough to switch to naive evaluation
-    if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
+    if direct:
         frame = DirectFrame(newprogram)
         render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
         return
