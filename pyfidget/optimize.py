@@ -96,7 +96,7 @@ def optimize(program, a, b, c, d, e, f, for_direct=True):
         print(res.pretty_format())
         if 50 < res.num_operations() < 1000:
             d = collect_uses(res)
-            graph(res, d)
+            #graph(res, d)
 
     opt.delete()
     #if not objectmodel.we_are_translated():
@@ -289,6 +289,9 @@ class Optimizer(object):
             self.opreplacements[index] = newop
         return self.opreplacements[numops - 1]
 
+    def get_func(self, index):
+        return OPS.mask(self.resultops.get_func(index))
+
     def opt_default(self, func, minimum, maximum, arg0=0, arg1=0):
         if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
             stats.constfold += 1
@@ -373,7 +376,7 @@ class Optimizer(object):
         if arg0maximum < 0:
             stats.abs_neg += 1
             return self.opt_neg(op, arg0, arg0minimum, arg0maximum)
-        if self.resultops.get_func(arg0) == OPS.neg:
+        if self.get_func(arg0) == OPS.neg:
             stats.abs_of_neg += 1
             arg0 = self.getarg(arg0, 0)
             minimum, maximum = self.intervalframe.minvalues[arg0], self.intervalframe.maxvalues[arg0]
@@ -382,7 +385,7 @@ class Optimizer(object):
         return self.opt_default(OPS.abs, minimum, maximum, arg0)
 
     def opt_square(self, op, arg0, arg0minimum, arg0maximum):
-        if self.resultops.get_func(arg0) == OPS.neg:
+        if self.get_func(arg0) == OPS.neg:
             stats.square_of_neg += 1
             arg0 = self.getarg(arg0, 0)
             minimum, maximum = self.intervalframe.minvalues[arg0], self.intervalframe.maxvalues[arg0]
@@ -395,7 +398,7 @@ class Optimizer(object):
         return self.opt_default(OPS.sqrt, minimum, maximum, arg0)
 
     def opt_neg(self, op, arg0, arg0minimum, arg0maximum):
-        if self.resultops.get_func(arg0) == OPS.neg:
+        if self.get_func(arg0) == OPS.neg:
             stats.neg_neg += 1
             return self.getarg(arg0, 0)
         minimum, maximum = self.intervalframe._neg(arg0minimum, arg0maximum)
@@ -429,7 +432,7 @@ class Optimizer(object):
         if arg0 == arg1:
             stats.min_self += 1
             return arg0
-        if self.resultops.get_func(arg0) == OPS.min:
+        if self.get_func(arg0) == OPS.min:
             # min(a, min(a, b)) -> min(a, b)
             arg0arg0, arg0arg1 = self.resultops.get_args(arg0)
             if arg0arg0 == arg1 or arg0arg1 == arg1:
@@ -445,7 +448,7 @@ class Optimizer(object):
         if arg0 == arg1:
             stats.max_self += 1
             return arg0
-        if self.resultops.get_func(arg0) == OPS.max:
+        if self.get_func(arg0) == OPS.max:
             # max(a, max(a, b)) -> max(a, b)
             arg0arg0, arg0arg1 = self.resultops.get_args(arg0)
             if arg0arg0 == arg1 or arg0arg1 == arg1:
@@ -529,12 +532,12 @@ class Optimizer(object):
 def convert_to_shortcut(resultops, op):
     func = OPS.mask(resultops.get_func(op))
     if func == OPS.min:
-        return convert_min_to_shortcut(resultops, op)
+        return convert_check_negative(resultops, op)
     elif func == OPS.max:
-        return convert_max_to_shortcut(resultops, op)
+        return convert_check_positive(resultops, op)
     return 0
 
-def convert_min_to_shortcut(resultops, op):
+def convert_check_negative(resultops, op):
     converted = 0
     while 1:
         func = OPS.mask(resultops.get_func(op))
@@ -544,12 +547,12 @@ def convert_min_to_shortcut(resultops, op):
         if func == OPS.min:
             converted += 1
             op, arg1 = resultops.get_args(op)
-            converted += convert_min_to_shortcut(resultops, arg1)
+            converted += convert_check_negative(resultops, arg1)
             continue
         break
     return converted
 
-def convert_max_to_shortcut(resultops, op):
+def convert_check_positive(resultops, op):
     converted = 0
     while 1:
         func = OPS.mask(resultops.get_func(op))
@@ -559,7 +562,7 @@ def convert_max_to_shortcut(resultops, op):
         if func == OPS.max:
             converted += 1
             op, arg1 = resultops.get_args(op)
-            converted += convert_max_to_shortcut(resultops, arg1)
+            converted += convert_check_positive(resultops, arg1)
             continue
         break
     return converted
