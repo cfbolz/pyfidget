@@ -426,14 +426,14 @@ class Optimizer(object):
 
 
 def work_backwards(resultops, result, minvalues, maxvalues):
-    if not objectmodel.we_are_translated():
-        for op in resultops:
-            print(resultops.op_to_str(op), minvalues[op], maxvalues[op])
+    #if not objectmodel.we_are_translated():
+    #    for op in resultops:
+    #        print(resultops.op_to_str(op), minvalues[op], maxvalues[op])
     def check_gt(resultops, op, minvalues, maxvalues, check_gt, val=0.0):
         while 1:
             func = resultops.get_func(op)
-            if not objectmodel.we_are_translated():
-                print("round!", OPS.char_to_name(func), "_%x" % op, minvalues[op], maxvalues[op])
+            #if not objectmodel.we_are_translated():
+            #    print("round!", OPS.char_to_name(func), "_%x" % op, minvalues[op], maxvalues[op])
             if func == OPS.max:
                 arg0, arg1 = resultops.get_args(op)
                 narg0 = check_gt(resultops, arg0, minvalues, maxvalues, check_gt, val)
@@ -454,6 +454,6 @@ def work_backwards(resultops, result, minvalues, maxvalues):
         return op
     otherop = check_gt(resultops, result, minvalues, maxvalues, check_gt)
     if result != otherop:
-        if not objectmodel.we_are_translated():
-            print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
+        #if not objectmodel.we_are_translated():
+        #    print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
     return otherop
