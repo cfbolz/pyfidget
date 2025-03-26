@@ -65,8 +65,10 @@ class Stats(object):
     sub_zero = 0
     min_range = 0
     min_self = 0
+    min_min_self = 0
     max_range = 0
     max_self = 0
+    max_max_self = 0
     mul_self = 0
     mul0 = 0
     mul1 = 0
@@ -91,8 +93,10 @@ class Stats(object):
         print('sub_zero', self.sub_zero)
         print('min_range', self.min_range)
         print('min_self', self.min_self)
+        print('min_min_self', self.min_min_self)
         print('max_range', self.max_range)
         print('max_self', self.max_self)
+        print('max_max_self', self.max_max_self)
         print('mul_self', self.mul_self)
         print('mul0', self.mul0)
         print('mu1', self.mul1)
@@ -323,6 +327,12 @@ class Optimizer(object):
         if arg0 == arg1:
             stats.min_self += 1
             return arg0
+        if self.resultops.get_func(arg0) == OPS.min:
+            # min(a, min(a, b)) -> min(a, b)
+            arg0arg0, arg0arg1 = self.resultops.get_args(arg0)
+            if arg0arg0 == arg1 or arg0arg1 == arg1:
+                stats.min_min_self += 1
+                return arg0
         return -1
 
     @symmetric
@@ -333,6 +343,12 @@ class Optimizer(object):
         if arg0 == arg1:
             stats.max_self += 1
             return arg0
+        if self.resultops.get_func(arg0) == OPS.max:
+            # max(a, max(a, b)) -> max(a, b)
+            arg0arg0, arg0arg1 = self.resultops.get_args(arg0)
+            if arg0arg0 == arg1 or arg0arg1 == arg1:
+                stats.max_max_self += 1
+                return arg0
         return -1
 
     @symmetric

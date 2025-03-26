@@ -321,6 +321,34 @@ out max z y
 """
     check_optimize(ops, 0.01, 10.0, -10, 10, -100, 100, expected)
 
+
+def test_min_min_self():
+    ops = """
+x var-x
+y var-y
+a min x y
+b min x a
+"""
+    expected = """
+x var-x
+y var-y
+a min x y
+"""
+    check_optimize(ops, expected)
+
+def test_max_max_self():
+    ops = """
+x var-x
+y var-y
+a max x y
+b max x a
+"""
+    expected = """
+x var-x
+y var-y
+a max x y
+"""
+    check_optimize(ops, expected)
 # ____________________________________________________________
 # random test case generation
 
