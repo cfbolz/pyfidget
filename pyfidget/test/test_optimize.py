@@ -4,7 +4,7 @@ import math
 import pytest
 from hypothesis import given, strategies, assume
 
-from pyfidget.optimize import optimize
+from pyfidget.optimize import optimize, convert_to_shortcut
 from pyfidget.parse import parse
 from pyfidget.vm import Program, ProgramBuilder, DirectFrame
 from pyfidget.vm import IntervalFrame
@@ -25,6 +25,8 @@ def check_optimize(program, minx=-1000, maxx=1000, miny=-1000, maxy=1000, minz=-
         assert (minimum, maximum) == expected
         return
     formatted = newops.pretty_format()
+    formatted = formatted.replace(" return_if_pos", "")
+    formatted = formatted.replace(" return_if_neg", "")
     if not formatted == parse(expected).pretty_format():
         print("EXPECTED:")
         print(expected.strip())
@@ -349,6 +351,71 @@ y var-y
 a max x y
 """
     check_optimize(ops, expected)
+# ____________________________________________________________
+
+def test_min_backwards():
+    program = """
+a var-x
+b var-y
+out min a b
+"""
+    program = parse(program)
+    convert_to_shortcut(program, 2)
+    assert program.pretty_format() == """\
+_0 var-x return_if_neg _0 _0
+_1 var-y return_if_neg _0 _0
+_2 min return_if_neg _0 _1\
+"""
+
+    program = """
+a var-x
+b var-y
+out max a b
+"""
+    program = parse(program)
+    convert_to_shortcut(program, 2)
+    assert program.pretty_format() == """\
+_0 var-x return_if_pos _0 _0
+_1 var-y return_if_pos _0 _0
+_2 max return_if_pos _0 _1\
+"""
+
+def test_min_backwards_further():
+    program = """
+a var-x
+b var-y
+c var-z
+out min a b
+out2 min out c
+"""
+    program = parse(program)
+    convert_to_shortcut(program, 4)
+    assert program.pretty_format() == """\
+_0 var-x return_if_neg _0 _0
+_1 var-y return_if_neg _0 _0
+_2 var-z return_if_neg _0 _0
+_3 min return_if_neg _0 _1
+_4 min return_if_neg _3 _2\
+"""
+
+def test_min_max_interleave_backwards():
+    program = """
+a var-x
+b var-y
+c var-z
+out max c a
+out2 min out b
+"""
+    program = parse(program)
+    convert_to_shortcut(program, 4)
+    assert program.pretty_format() == """\
+_0 var-x _0 _0
+_1 var-y return_if_neg _0 _0
+_2 var-z return_if_pos _0 _0
+_3 max return_if_pos _2 _0
+_4 min return_if_neg _3 _1\
+"""
+
 # ____________________________________________________________
 # random test case generation
 

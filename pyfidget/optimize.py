@@ -3,35 +3,108 @@ import math
 import sys
 
 from rpython.rlib import jit, objectmodel
+from rpython.tool.udir import udir
 
 from pyfidget.operations import OPS
 from pyfidget.vm import ProgramBuilder, IntervalFrame
 
+from dotviewer.graphpage import GraphPage as BaseGraphPage
+
+class GraphPage(BaseGraphPage):
+    save_tmp_file = str(udir.join('graph.dot'))
+
+    def compute(self, source, links):
+        self.source = source
+        self.links = links
+
+
 def isfinite(val):
     return not math.isinf(val) and not math.isnan(val)
 
-def optimize(program, a, b, c, d, e, f):
+from collections import defaultdict
+def collect_uses(p):
+    d = defaultdict(list)
+    for op in p:
+        func = p.get_func(op)
+        if func == OPS.const:
+            continue
+        args = p.get_args(op)
+        for arg in args[:OPS.num_args(func)]:
+            d[arg].append(op)
+    return d
+
+def split_blocks(res, d, allops):
+    blocks = defaultdict(list)
+    for op in res:
+        currop = op
+        while 1:
+            uses = d[currop]
+            if len(uses) != 1 or OPS.mask(res.get_func(currop)) in (OPS.min, OPS.max):
+                break
+            currop, = uses
+        blocks[currop].append(op)
+    return blocks
+
+
+def graph(res, d):
+    from dotviewer import graphclient
+    out = ['digraph G {']
+    allops = set(list(res))
+    blocks = split_blocks(res, d, allops)
+    minmaxspine = {max(res)}
+    for endop in sorted(blocks, reverse=True):
+        if OPS.mask(res.get_func(endop)) in (OPS.min, OPS.max):
+            if len(d[endop]) == 1 and d[endop][0] in minmaxspine:
+                minmaxspine.add(endop)
+
+    edges = set()
+    for endop, ops in blocks.items():
+        label = []
+        for op in ops:
+            label.append(res.op_to_str(op))
+            args = res.get_args(op)
+            func = res.get_func(op)
+            if func == OPS.const:
+                continue
+            for arg in args[:OPS.num_args(func)]:
+                if arg not in ops:
+                    edges.add((endop, arg))
+        label.reverse()
+        color = 'yellow' if endop in minmaxspine else 'white'
+        out.append("%s [shape=box, label=\"%s\", color=%s];" % (endop, "\\l".join(label), color))
+    for endop, arg in edges:
+        out.append("%s -> %s;" % (endop, arg))
+    out.append("}")
+    dot = "\n".join(out)
+    with open("out.dot", "w") as f:
+        f.write(dot)
+    GraphPage(dot, {"_%x" % op: res.op_to_str(op) for op in res}).display()
+
+def optimize(program, a, b, c, d, e, f, for_direct=True):
+    for_direct = True
     opt = Optimizer.new(program)
-    opt.optimize(a, b, c, d, e, f)
-    resindex = program.num_operations() - 1
-    result = opt.opreplacements[resindex]
+    result = opt.optimize(a, b, c, d, e, f)
     resultops = opt.resultops
     minimum = opt.intervalframe.minvalues[result]
     maximum = opt.intervalframe.maxvalues[result]
     if (isfinite(minimum) and isfinite(maximum)) and (minimum > 0.0 or maximum <= 0):
         opt.delete()
         return None, minimum, maximum
-    result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues)
+    result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues, for_direct=for_direct)
     res = opt.dce(result)
+    if not objectmodel.we_are_translated() and for_direct:
+        print(res.pretty_format())
+        if 50 < res.num_operations() < 1000:
+            d = collect_uses(res)
+            #graph(res, d)
+
     opt.delete()
     #if not objectmodel.we_are_translated():
     #    print("length before", program.num_operations(), "len after", res.num_operations())
     #    print(res)
     return res, minimum, maximum
 
-@jit.dont_look_inside
-def opt_program(*args):
-    return optimize(*args)
+opt_program = optimize
 
 def symmetric(func):
     name = func.func_name[len('opt_'):]
@@ -74,6 +147,14 @@ class Stats(object):
     mul1 = 0
     mul_neg1 = 0
 
+    backwards_shortening = 0
+
+    ops_executed = 0
+    ops_skipped = 0
+    ops_optimized = 0
+    ops_optimized_checked = 0
+    ops_optimized_skipped = 0
+
     ops = [0] * 14
 
     def print_stats(self):
@@ -102,9 +183,18 @@ class Stats(object):
         print('mu1', self.mul1)
         print('mul_neg1', self.mul_neg1)
         print()
+        print('backwards_shortening', self.backwards_shortening)
+        print()
 
         for index, value in enumerate(self.ops):
             print(OPS.char_to_name(chr(index)), value)
+
+        print()
+        print('ops_executed', self.ops_executed)
+        print('ops_skipped', self.ops_skipped)
+        print('ops_optimized', self.ops_optimized)
+        print('ops_optimized_checked', self.ops_optimized_checked)
+        print('ops_optimized_skipped', self.ops_optimized_skipped)
 
 
 stats = Stats()
@@ -176,11 +266,27 @@ class Optimizer(object):
         program = self.program
         self.intervalframe.setup(self.program.num_operations())
         self.intervalframe.setxyz(a, b, c, d, e, f)
-
-        for index in range(program.num_operations()):
+        numops = program.num_operations()
+        stats.ops_optimized += numops
+        for index in range(numops):
             stats.total_ops += 1
+            func = program.get_func(index)
             newop = self._optimize_op(index)
+            if OPS.should_return_if_pos(func):
+                stats.ops_optimized_checked += 1
+                if self.intervalframe.minvalues[newop] > 0:
+                    stats.ops_optimized_skipped += numops - index - 1
+                    return newop
+            if OPS.should_return_if_neg(func):
+                stats.ops_optimized_checked += 1
+                if self.intervalframe.maxvalues[newop] <= 0.0:
+                    stats.ops_optimized_skipped += numops - index - 1
+                    return newop
             self.opreplacements[index] = newop
+        return self.opreplacements[numops - 1]
+
+    def get_func(self, index):
+        return OPS.mask(self.resultops.get_func(index))
 
     def opt_default(self, func, minimum, maximum, arg0=0, arg1=0):
         if minimum == maximum and not math.isnan(minimum) and not math.isinf(minimum):
@@ -211,6 +317,7 @@ class Optimizer(object):
         program = self.program
         intervalframe = self.intervalframe
         func, arg0, arg1 = program.get_func_and_args(op)
+        func = OPS.mask(func)
         stats.ops[ord(func)] += 1
         if func == OPS.var_x:
             minimum = self.intervalframe.minx
@@ -268,7 +375,7 @@ class Optimizer(object):
             stats.abs_neg += 1
             return self.opt_neg(op, arg0, arg0minimum, arg0maximum)
         func, arg0arg0, _ = self.resultops.get_func_and_args(arg0)
-        if func == OPS.neg:
+        if OPS.mask(func) == OPS.neg:
             stats.abs_of_neg += 1
             minimum, maximum = self.intervalframe.minvalues[arg0arg0], self.intervalframe.maxvalues[arg0arg0]
             return self.opt_abs(op, arg0arg0, minimum, maximum)
@@ -277,7 +384,7 @@ class Optimizer(object):
 
     def opt_square(self, op, arg0, arg0minimum, arg0maximum):
         func, arg0arg0, _ = self.resultops.get_func_and_args(arg0)
-        if func == OPS.neg:
+        if OPS.mask(func) == OPS.neg:
             stats.square_of_neg += 1
             minimum, maximum = self.intervalframe.minvalues[arg0arg0], self.intervalframe.maxvalues[arg0arg0]
             return self.opt_square(op, arg0arg0, minimum, maximum)
@@ -290,7 +397,7 @@ class Optimizer(object):
 
     def opt_neg(self, op, arg0, arg0minimum, arg0maximum):
         func, arg0arg0, _ = self.resultops.get_func_and_args(arg0)
-        if func == OPS.neg:
+        if OPS.mask(func) == OPS.neg:
             stats.neg_neg += 1
             return arg0arg0
         minimum, maximum = self.intervalframe._neg(arg0minimum, arg0maximum)
@@ -325,7 +432,7 @@ class Optimizer(object):
             stats.min_self += 1
             return arg0
         func, arg0arg0, arg0arg1 = self.resultops.get_func_and_args(arg0)
-        if func == OPS.min:
+        if OPS.mask(func) == OPS.min:
             # min(a, min(a, b)) -> min(a, b)
             if arg0arg0 == arg1 or arg0arg1 == arg1:
                 stats.min_min_self += 1
@@ -341,7 +448,7 @@ class Optimizer(object):
             stats.max_self += 1
             return arg0
         func, arg0arg0, arg0arg1 = self.resultops.get_func_and_args(arg0)
-        if func == OPS.max:
+        if OPS.mask(func) == OPS.max:
             # max(a, max(a, b)) -> max(a, b)
             if arg0arg0 == arg1 or arg0arg1 == arg1:
                 stats.max_max_self += 1
@@ -419,8 +526,46 @@ class Optimizer(object):
             index += 1
         return ops.finish()
 
+def convert_to_shortcut(resultops, op):
+    func = OPS.mask(resultops.get_func(op))
+    if func == OPS.min:
+        return convert_check_negative(resultops, op)
+    elif func == OPS.max:
+        return convert_check_positive(resultops, op)
+    return 0
 
-def work_backwards(resultops, result, minvalues, maxvalues):
+def convert_check_negative(resultops, op):
+    converted = 0
+    while 1:
+        func = OPS.mask(resultops.get_func(op))
+        if func == OPS.const:
+            break
+        resultops.funcs[op] = OPS.add_flag(func, OPS.RETURN_IF_NEG)
+        if func == OPS.min:
+            converted += 1
+            op, arg1 = resultops.get_args(op)
+            converted += convert_check_negative(resultops, arg1)
+            continue
+        break
+    return converted
+
+def convert_check_positive(resultops, op):
+    converted = 0
+    while 1:
+        func = OPS.mask(resultops.get_func(op))
+        if func == OPS.const:
+            break
+        resultops.funcs[op] = OPS.add_flag(func, OPS.RETURN_IF_POS)
+        if func == OPS.max:
+            converted += 1
+            op, arg1 = resultops.get_args(op)
+            converted += convert_check_positive(resultops, arg1)
+            continue
+        break
+    return converted
+
+
+def work_backwards(resultops, result, minvalues, maxvalues, for_direct=False):
     #if not objectmodel.we_are_translated():
     #    for op in resultops:
     #        print(resultops.op_to_str(op), minvalues[op], maxvalues[op])
@@ -449,4 +594,7 @@ def work_backwards(resultops, result, minvalues, maxvalues):
     #if result != otherop:
         #if not objectmodel.we_are_translated():
         #    print("SHORTENED! by", result - otherop, "to", "_%x" % otherop)
+    stats.backwards_shortening += result - otherop
+    if for_direct:
+        converted = convert_to_shortcut(resultops, otherop)
     return otherop

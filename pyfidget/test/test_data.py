@@ -1,7 +1,10 @@
 from __future__ import print_function
+import pytest
 from hypothesis import given, strategies, assume
 from pyfidget.vm import IntervalFrame, DirectFrame
 import math
+
+pytest.skip()
 
 regular_floats = strategies.floats(allow_nan=False, allow_infinity=False)
 

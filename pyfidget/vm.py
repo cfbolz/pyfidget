@@ -70,9 +70,16 @@ class ProgramBuilder(object):
         res = Program(self.funcs[:self.index], self.arguments[:2*self.index], self.consts[:self.const_index])
         return res
 
+    def get_func(self, index):
+        return self.get_func_and_args(index)[0]
+
     def get_func_and_args(self, index):
         assert index < self.index
         return self.funcs[index], self.arguments[index*2], self.arguments[index*2 + 1]
+
+    @objectmodel.always_inline
+    def get_args(self, index):
+        return self.arguments[index*2], self.arguments[index*2 + 1]
 
     def num_operations(self):
         return self.index
@@ -123,8 +130,8 @@ class Program(object):
     def _op_to_str(self, i, result):
         func, arg0, arg1 = self.get_func_and_args(i)
         func = OPS.char_to_name(func)
-        if func == "const":
-            result.append("_%x const %s" % (i, self.consts[arg0]))
+        if func.startswith("const"):
+            result.append("_%x %s %s" % (i, func, self.consts[arg0]))
         else:
             result.append("_%x %s _%x _%x" % (i, func, arg0, arg1))
 
@@ -189,8 +196,7 @@ class DirectFrame(object):
 
     def run_floats(self, x, y, z):
         self.setxyz(x, y, z)
-        self.run()
-        return self.floatvalues[self.program.size_storage() - 1]
+        return self.run()
 
     def setup(self, length):
         if self.floatvalues and len(self.floatvalues) == length and not jit.we_are_jitted():
@@ -202,48 +208,97 @@ class DirectFrame(object):
         self.y = y
         self.z = z
 
-    def get_x(self, resindex):
-        self.floatvalues[resindex] = self.x
+    def run(self):
+        from pyfidget.optimize import stats
+        program = self.program
+        jit.promote(program)
+        num_ops = program.num_operations()
+        self.setup(num_ops)
+        stats.ops_executed += num_ops
+        floatvalues = self.floatvalues
+        for op in range(num_ops):
+            func = program.get_func(op)
+            arg0, arg1 = program.get_args(op)
+            if func == OPS.const:
+                floatvalues[op] = program.consts[arg0]
+                continue
+            farg0 = floatvalues[arg0]
+            farg1 = floatvalues[arg1]
+            bare_func = OPS.mask(func)
+            if bare_func == OPS.const:
+                res = program.consts[arg0]
+            elif bare_func == OPS.var_x:
+                res = self.x
+            elif bare_func == OPS.var_y:
+                res = self.y
+            elif bare_func == OPS.var_z:
+                res = self.z
+            elif bare_func == OPS.add:
+                res = self.add(farg0, farg1)
+            elif bare_func == OPS.sub:
+                res = self.sub(farg0, farg1)
+            elif bare_func == OPS.mul:
+                res = self.mul(farg0, farg1)
+            elif bare_func == OPS.max:
+                res = self.max(farg0, farg1)
+            elif bare_func == OPS.min:
+                res = self.min(farg0, farg1)
+            elif bare_func == OPS.square:
+                res = self.square(farg0)
+            elif bare_func == OPS.sqrt:
+                res = self.sqrt(farg0)
+            elif bare_func == OPS.exp:
+                res = self.exp(farg0)
+            elif bare_func == OPS.neg:
+                res = self.neg(farg0)
+            elif bare_func == OPS.abs:
+                res = self.abs(farg0)
+            else:
+                assert 0
+            if OPS.should_return_if_neg(func):
+                if res <= 0.0:
+                    stats.ops_skipped += num_ops - op - 1
+                    return res
+            if OPS.should_return_if_pos(func):
+                if res > 0.0:
+                    stats.ops_skipped += num_ops - op - 1
+                    return res
+            floatvalues[op] = res
+        return self.floatvalues[self.program.size_storage() - 1]
 
-    def get_y(self, resindex):
-        self.floatvalues[resindex] = self.y
+    def _run_op(self, op, func):
+        program = self.program
 
-    def get_z(self, resindex):
-        self.floatvalues[resindex] = self.z
+    def add(self, arg0, arg1):
+        return arg0 + arg1
 
-    def make_constant(self, const, resindex):
-        self.floatvalues[resindex] = const
+    def sub(self, arg0, arg1):
+        return arg0 - arg1
 
-    def add(self, arg0index, arg1index, resindex):
-        self.floatvalues[resindex] = self.floatvalues[arg0index] + self.floatvalues[arg1index]
+    def mul(self, arg0, arg1):
+        return arg0 * arg1
 
-    def sub(self, arg0index, arg1index, resindex):
-        self.floatvalues[resindex] = self.floatvalues[arg0index] - self.floatvalues[arg1index]
+    def max(self, arg0, arg1):
+        return max(arg0, arg1)
 
-    def mul(self, arg0index, arg1index, resindex):
-        self.floatvalues[resindex] = self.floatvalues[arg0index] * self.floatvalues[arg1index]
+    def min(self, arg0, arg1):
+        return min(arg0, arg1)
 
-    def max(self, arg0index, arg1index, resindex):
-        self.floatvalues[resindex] = max(self.floatvalues[arg0index], self.floatvalues[arg1index])
+    def square(self, arg0):
+        val = arg0
+        return val*val
 
-    def min(self, arg0index, arg1index, resindex):
-        self.floatvalues[resindex] = min(self.floatvalues[arg0index], self.floatvalues[arg1index])
+    def sqrt(self, arg0):
+        return math.sqrt(arg0)
 
-    def square(self, arg0index, resindex):
-        val = self.floatvalues[arg0index]
-        self.floatvalues[resindex] = val*val
+    def exp(self, arg0):
+        return math.exp(arg0)
 
-    def sqrt(self, arg0index, resindex):
-        self.floatvalues[resindex] = math.sqrt(self.floatvalues[arg0index])
+    def neg(self, arg0):
+        return -arg0
 
-    def exp(self, arg0index, resindex):
-        self.floatvalues[resindex] = math.exp(self.floatvalues[arg0index])
-
-    def neg(self, arg0index, resindex):
-        self.floatvalues[resindex] = -self.floatvalues[arg0index]
-
-    def abs(self, arg0index, resindex):
-        self.floatvalues[resindex] = abs(self.floatvalues[arg0index])
+    def abs(self, arg0):
+        return abs(arg0)
 
 def float_choose(cond, iftrue, iffalse):
     if not jit.we_are_jitted():
@@ -325,6 +380,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._add(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _add(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return arg0minimum + arg1minimum, arg0maximum + arg1maximum
 
@@ -336,6 +392,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._sub(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _sub(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return arg0minimum - arg1maximum, arg0maximum - arg1minimum
 
@@ -347,6 +404,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._mul(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _mul(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return min4(arg0minimum * arg1minimum, arg0minimum * arg1maximum, arg0maximum * arg1minimum, arg0maximum * arg1maximum), \
                max4(arg0minimum * arg1minimum, arg0minimum * arg1maximum, arg0maximum * arg1minimum, arg0maximum * arg1maximum)
@@ -359,6 +417,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._max(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _max(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return max(arg0minimum, arg1minimum), max(arg0maximum, arg1maximum)
 
@@ -370,6 +429,7 @@ class IntervalFrame(object):
         minvalue, maxvalue = self._min(arg0minimum, arg0maximum, arg1minimum, arg1maximum)
         self._set(resindex, minvalue, maxvalue)
 
+    @objectmodel.always_inline
     def _min(self, arg0minimum, arg0maximum, arg1minimum, arg1maximum):
         return min(arg0minimum, arg1minimum), min(arg0maximum, arg1maximum)
 
@@ -377,6 +437,7 @@ class IntervalFrame(object):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         self._set(resindex, *self._square(min0, max0))
 
+    @objectmodel.always_inline
     def _square(self, min0, max0):
         if min0 >= 0:
             return min0 * min0, max0 * max0
@@ -389,6 +450,7 @@ class IntervalFrame(object):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         self._set(resindex, *self._sqrt(min0, max0))
 
+    @objectmodel.always_inline
     def _sqrt(self, min0, max0):
         if max0 < 0:
             return float('nan'), float('nan')
@@ -398,6 +460,7 @@ class IntervalFrame(object):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         self._set(resindex, *self._abs(min0, max0))
 
+    @objectmodel.always_inline
     def _abs(self, min0, max0):
         if max0 < 0:
             return -max0, -min0
@@ -409,6 +472,7 @@ class IntervalFrame(object):
     def neg(self, arg0index, resindex):
         self._set(resindex, *self._neg(self.minvalues[arg0index], self.maxvalues[arg0index]))
 
+    @objectmodel.always_inline
     def _neg(self, min0, max0):
         return -max0, -min0
 
@@ -416,6 +480,7 @@ class IntervalFrame(object):
         min0, max0 = self.minvalues[arg0index], self.maxvalues[arg0index]
         self._set(resindex, *self._exp(min0, max0))
 
+    @objectmodel.always_inline
     def _exp(self, min0, max0):
         return math.exp(min0), math.exp(max0)
 
@@ -521,7 +586,9 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
     b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
     c = miny + (maxy - miny) * starty / (height - 1)
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
-    newprogram, minimum, maximum = opt_program(program, a, b, c, d, 0.0, 0.0)
+
+    direct = stopx - startx <= LIMIT or stopy - starty <= LIMIT
+    newprogram, minimum, maximum = opt_program(program, a, b, c, d, 0.0, 0.0, for_direct=direct)
     if maximum < 0:
         # completely inside
         _fill_black(width, height, result, startx, stopx, starty, stopy)
@@ -532,7 +599,7 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
     assert newprogram is not None
 
     # check whether area is small enough to switch to naive evaluation
-    if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
+    if direct:
         frame = DirectFrame(newprogram)
         render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
         return
@@ -564,7 +631,8 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
     d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
     before_opt = frame.program.num_operations()
     t1 = time.time()
-    newprogram, minimum, maximum = opt_program(frame.program, a, b, c, d, 0.0, 0.0)
+    direct = stopx - startx <= LIMIT or stopy - starty <= LIMIT
+    newprogram, minimum, maximum = opt_program(frame.program, a, b, c, d, 0.0, 0.0, for_direct=direct)
     t2 = time.time()
     label = node_label(startx, stopx, starty, stopy)
     descr = ['%s-%s, %s-%s' % (startx, stopx, starty, stopy),
@@ -581,7 +649,7 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
     descr.append('size program %s (before opt: %s)' % (frame.program.num_operations(), before_opt))
 
     # check whether area is small enough to switch to naive evaluation
-    if stopx - startx <= LIMIT or stopy - starty <= LIMIT:
+    if direct:
         frame = DirectFrame(newprogram)
         direct_label = node_label(startx, stopx, starty, stopy, 'd')
         t1 = time.time()
