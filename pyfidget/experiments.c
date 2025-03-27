@@ -180,6 +180,382 @@ void render_naive(struct op ops[], int height, uint8_t* pixels) {
     }
 }
 
+// optimizing
+
+struct interval {
+    float min;
+    float max;
+};
+
+struct optimizer {
+    struct op* ops;
+    struct op* resultops;
+    uint16_t count;
+    struct interval* intervals;
+    uint16_t* opreplacements;
+    float minx;
+    float maxx;
+    float miny;
+    float maxy;
+};
+
+struct optimizer* create_optimizer(struct op* ops) {
+    struct optimizer* opt = malloc(sizeof(struct optimizer));
+    opt->ops = ops;
+    opt->resultops = malloc(sizeof(struct op) * 65536);
+    opt->count = 0;
+    opt->intervals = malloc(sizeof(struct interval) * 65536);
+    opt->opreplacements = calloc(sizeof(uint16_t), 65536);
+    return opt;
+}
+
+void destroy_optimizer(struct optimizer* opt) {
+    free(opt->resultops);
+    free(opt->intervals);
+    free(opt->opreplacements);
+    free(opt);
+}
+
+uint16_t opt_default(struct op newop, struct optimizer* opt, struct interval interval) {
+    opt->resultops[opt->count] = newop;
+    opt->intervals[opt->count] = interval;
+    return opt->count++;
+}
+
+uint16_t opt_default0(enum func f, struct optimizer* opt, struct interval interval) {
+    struct op newop;
+    newop.f = f;
+    return opt_default(newop, opt, interval);
+}
+
+uint16_t opt_default1(enum func f, struct optimizer* opt, struct interval interval, uint16_t arg0) {
+    struct op newop;
+    newop.f = f;
+    newop.unary.a0 = arg0;
+    return opt_default(newop, opt, interval);
+}
+
+uint16_t opt_default2(enum func f, struct optimizer* opt, struct interval interval, uint16_t arg0, uint16_t arg1) {
+    struct op newop;
+    newop.f = f;
+    newop.binary.a0 = arg0;
+    newop.binary.a1 = arg1;
+    return opt_default(newop, opt, interval);
+}
+
+uint16_t opt_newconst(struct optimizer* opt, float constant) {
+    struct op newop;
+    newop.f = func_const;
+    newop.constant = constant;
+    opt->resultops[opt->count] = newop;
+    struct interval newinterval;
+    newinterval.min = constant;
+    newinterval.max = constant;
+    opt->intervals[opt->count] = newinterval;
+    return opt->count++;
+}
+
+uint16_t opt_varx(struct op op, struct optimizer* opt) {
+    struct interval interval = {.min=opt->minx, .max=opt->maxx};
+    return opt_default0(func_varx, opt, interval);
+}
+
+uint16_t opt_vary(struct op op, struct optimizer* opt) {
+    struct interval interval = {.min=opt->miny, .max=opt->maxy};
+    return opt_default0(func_vary, opt, interval);
+}
+
+uint16_t opt_varz(struct op op, struct optimizer* opt) {
+    struct interval interval = {.min=0, .max=0};
+    return opt_default0(func_varz, opt, interval);
+}
+uint16_t opt_const(struct op op, struct optimizer* opt) {
+    return opt_newconst(opt, op.constant);
+}
+
+uint16_t opt_neg(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+    struct interval resinterval;
+    resinterval.min = -a0interval.max;
+    resinterval.max = -a0interval.min;
+    // simplify neg of neg
+    struct op arg0op = opt->resultops[arg0];
+    if (arg0op.f == func_neg) {
+        // remove the neg
+        return opt_default1(func_neg, opt, a0interval, arg0op.unary.a0);
+    }
+    return opt_default1(func_neg, opt, resinterval, arg0);
+}
+
+uint16_t opt_abs(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+    if (a0interval.min >= 0) {
+        return arg0;
+    }
+    if (a0interval.max <= 0) {
+        return opt_neg(op, opt, arg0, a0interval);
+    }
+    struct op arg0op = opt->resultops[arg0];
+    if (arg0op.f == func_neg) {
+        struct interval arg0arg0interval = opt->intervals[arg0op.unary.a0];
+        return opt_abs(op, opt, arg0op.unary.a0, arg0arg0interval);
+    }
+    struct interval resinterval;
+    resinterval.min = 0.0;
+    resinterval.max = fmaxf(-a0interval.min, a0interval.max);
+    return opt_default1(func_abs, opt, resinterval, arg0);
+}
+
+uint16_t opt_sqrt(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+    struct interval resinterval;
+    if (a0interval.min < 0) {
+        resinterval.max = NAN;
+        resinterval.min = NAN;
+    } else {
+        resinterval.min = sqrtf(a0interval.min);
+        resinterval.max = sqrtf(a0interval.max);
+    }
+    return opt_default1(func_sqrt, opt, resinterval, arg0);
+}
+
+uint16_t opt_square(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+    struct interval resinterval;
+    if (a0interval.min >= 0) {
+        resinterval.min = a0interval.min * a0interval.min;
+        resinterval.max = a0interval.max * a0interval.max;
+    } else if (a0interval.max <= 0) {
+        resinterval.min = a0interval.max * a0interval.max;
+        resinterval.max = a0interval.min * a0interval.min;
+    } else {
+        resinterval.min = 0.0;
+        resinterval.max = fmaxf(a0interval.min * a0interval.min, a0interval.max * a0interval.max);
+    }
+    // if the argument of the square is a neg operation, we can remove the neg
+    struct op arg0op = opt->resultops[arg0];
+    if (arg0op.f == func_neg) {
+        // remove the neg
+        return opt_default1(func_square, opt, resinterval, arg0op.unary.a0);
+    }
+    return opt_default1(func_square, opt, resinterval, arg0);
+}
+
+uint16_t opt_min(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+    if (a0interval.max < a1interval.min) {
+        return arg0;
+    }
+    if (a1interval.max < a0interval.min) {
+        return arg1;
+    }
+    if (arg0 == arg1) {
+        return arg0;
+    }
+    struct op arg0op = opt->resultops[arg0];
+    if (arg0op.f == func_min) {
+        // min(min(a, b), a) = min(a, b)
+        if (arg0op.binary.a0 == arg1 && arg0op.binary.a1 == arg1) {
+            return arg0;
+        }
+    }
+    struct op arg1op = opt->resultops[arg1];
+    if (arg1op.f == func_min) {
+        // min(a, min(a, b)) = min(a, b)
+        if (arg1op.binary.a0 == arg1 && arg1op.binary.a1 == arg1) {
+            return arg1;
+        }
+    }
+    struct interval resinterval;
+    resinterval.min = fminf(a0interval.min, a1interval.min);
+    resinterval.max = fminf(a0interval.max, a1interval.max);
+    return opt_default2(func_min, opt, resinterval, arg0, arg1);
+}
+
+uint16_t opt_max(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+    if (a0interval.min > a1interval.max) {
+        return arg0;
+    }
+    if (a1interval.min > a0interval.max) {
+        return arg1;
+    }
+    if (arg0 == arg1) {
+        return arg0;
+    }
+    struct op arg0op = opt->resultops[arg0];
+    if (arg0op.f == func_max) {
+        // max(max(a, b), a) = max(a, b)
+        if (arg0op.binary.a0 == arg1 && arg0op.binary.a1 == arg1) {
+            return arg0;
+        }
+    }
+    struct op arg1op = opt->resultops[arg1];
+    if (arg1op.f == func_max) {
+        // max(a, max(a, b)) = max(a, b)
+        if (arg1op.binary.a0 == arg1 && arg1op.binary.a1 == arg1) {
+            return arg1;
+        }
+    }
+    struct interval resinterval;
+    resinterval.min = fmaxf(a0interval.min, a1interval.min);
+    resinterval.max = fmaxf(a0interval.max, a1interval.max);
+    return opt_default2(func_max, opt, resinterval, arg0, arg1);
+}
+
+uint16_t opt_mul(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+    if (a0interval.min == a0interval.max) {
+        if (a0interval.min == 0) {
+            return opt_newconst(opt, 0);
+        }
+        if (a0interval.min == 1) {
+            return arg1;
+        }
+        if (a0interval.min == -1) {
+            return opt_neg(op, opt, arg1, a1interval);
+        }
+    }
+    if (a1interval.min == a1interval.max) {
+        if (a1interval.min == 0) {
+            return opt_newconst(opt, 0);
+        }
+        if (a1interval.min == 1) {
+            return arg0;
+        }
+        if (a1interval.min == -1) {
+            return opt_neg(op, opt, arg0, a0interval);
+        }
+    }
+    struct interval resinterval;
+    resinterval.min = fminf(fminf(a0interval.min * a1interval.min, a0interval.min * a1interval.max), fminf(a0interval.max * a1interval.min, a0interval.max * a1interval.max));
+    resinterval.max = fmaxf(fmaxf(a0interval.min * a1interval.min, a0interval.min * a1interval.max), fmaxf(a0interval.max * a1interval.min, a0interval.max * a1interval.max));
+    return opt_default2(func_mul, opt, resinterval, arg0, arg1);
+}
+
+uint16_t opt_sub(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+    if (arg0 == arg1) {
+        return opt_newconst(opt, 0);
+    }
+    if (a0interval.min == a0interval.max) {
+        if (a0interval.min == 0) {
+            return opt_neg(op, opt, arg1, a1interval);
+        }
+    }
+    if (a1interval.min == a1interval.max) {
+        if (a1interval.min == 0) {
+            return arg0;
+        }
+    }
+    struct interval resinterval;
+    resinterval.min = a0interval.min - a1interval.max;
+    resinterval.max = a0interval.max - a1interval.min;
+    return opt_default2(func_sub, opt, resinterval, arg0, arg1);
+}
+
+uint16_t opt_add(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+    if (a0interval.min == a0interval.max) {
+        if (a0interval.min == 0) {
+            return arg1;
+        }
+    }
+    if (a1interval.min == a1interval.max) {
+        if (a1interval.min == 0) {
+            return arg0;
+        }
+    }
+    struct interval resinterval;
+    resinterval.min = a0interval.min + a1interval.min;
+    resinterval.max = a0interval.max + a1interval.max;
+    return opt_default2(func_add, opt, resinterval, arg0, arg1);
+}
+
+uint16_t opt_done(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+    return opt_default1(func_done, opt, a0interval, arg0);
+}
+
+uint16_t opt_op(struct op op, struct optimizer* opt) {
+    uint16_t a0, a1;
+    struct interval a0interval;
+    struct interval a1interval;
+    switch(op.f) {
+        case func_varx:
+            return opt_varx(op, opt);
+        case func_vary:
+            return opt_vary(op, opt);
+        case func_varz:
+            return opt_varz(op, opt);
+        case func_const:
+            return opt_const(op, opt);
+        case func_abs:
+            a0 = opt->opreplacements[op.unary.a0];
+            a0interval = opt->intervals[a0];
+            return opt_abs(op, opt, a0, a0interval);
+        case func_sqrt:
+            a0 = opt->opreplacements[op.unary.a0];
+            a0interval = opt->intervals[a0];
+            return opt_sqrt(op, opt, a0, a0interval);
+        case func_square: 
+            a0 = opt->opreplacements[op.unary.a0];
+            a0interval = opt->intervals[a0];
+            return opt_square(op, opt, a0, a0interval);
+        case func_neg:
+            a0 = opt->opreplacements[op.unary.a0];
+            a0interval = opt->intervals[a0];
+            return opt_neg(op, opt, a0, a0interval);
+        case func_add:
+            a0 = opt->opreplacements[op.binary.a0];
+            a1 = opt->opreplacements[op.binary.a1];
+            a0interval = opt->intervals[a0];
+            a1interval = opt->intervals[a1];
+            return opt_add(op, opt, a0, a1, a0interval, a1interval);
+        case func_sub:
+            a0 = opt->opreplacements[op.binary.a0];
+            a1 = opt->opreplacements[op.binary.a1];
+            a0interval = opt->intervals[a0];
+            a1interval = opt->intervals[a1];
+            return opt_sub(op, opt, a0, a1, a0interval, a1interval);
+        case func_mul:
+            a0 = opt->opreplacements[op.binary.a0];
+            a1 = opt->opreplacements[op.binary.a1];
+            a0interval = opt->intervals[a0];
+            a1interval = opt->intervals[a1];
+            return opt_mul(op, opt, a0, a1, a0interval, a1interval);
+        case func_min:
+            a0 = opt->opreplacements[op.binary.a0];
+            a1 = opt->opreplacements[op.binary.a1];
+            a0interval = opt->intervals[a0];
+            a1interval = opt->intervals[a1];
+            return opt_min(op, opt, a0, a1, a0interval, a1interval);
+        case func_max:
+            a0 = opt->opreplacements[op.binary.a0];
+            a1 = opt->opreplacements[op.binary.a1];
+            a0interval = opt->intervals[a0];
+            a1interval = opt->intervals[a1];
+            return opt_max(op, opt, a0, a1, a0interval, a1interval);
+        case func_done:
+            a0 = opt->opreplacements[op.unary.a0];
+            a0interval = opt->intervals[a0];
+            return opt_done(op, opt, a0, a0interval);
+        default:
+            fprintf(stderr, "Error: unknown operator %d\n", op.f);
+            exit(1);
+    }
+}
+
+struct op* optimize(struct op* ops, float minx, float maxx, float miny, float maxy) {
+    // create the optimizer
+    struct optimizer* opt = create_optimizer(ops);
+    opt->minx = minx;
+    opt->maxx = maxx;
+    opt->miny = miny;
+    opt->maxy = maxy;
+    // optimize the ops
+    for (int i = 0; i < 65536; i++) {
+        struct op op = ops[i];
+        uint16_t newopindex = opt_op(op, opt);
+        opt->opreplacements[i] = newopindex;
+    }
+    // return the optimized ops
+    return opt->resultops;
+}
+
+
+// parsing
+
 uint16_t parse_arg(char* arg, char* names[], uint16_t count) {
     // parse the argument
     // it's always a name that must exist in the names list.
