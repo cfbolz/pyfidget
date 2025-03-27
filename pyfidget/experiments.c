@@ -43,113 +43,116 @@ struct __attribute__((packed)) op {
     enum func f;
 };
 
-float __attribute__((regcall)) dispatch(struct op ops[], int pc, float values[], float x, float y);
-
 #define MUSTTAIL __attribute__((musttail))
+#define REGCALL __attribute__((regcall))
+//#define REGCALL 
+
+float REGCALL dispatch(struct op ops[], int pc, float x, float y);
+
 
 float values[65536];
 
-float __attribute__((regcall)) execute_varx(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_varx(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = x;
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_vary(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_vary(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = y;
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_varz(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_varz(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = 0;
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_const(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_const(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = ops[pc].constant;
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_abs(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_abs(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = fabsf(values[ops[pc].unary.a0]);
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_sqrt(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_sqrt(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = sqrtf(values[ops[pc].unary.a0]);
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_square(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_square(struct op ops[], int pc, float x, float y) {
     float arg = values[ops[pc].unary.a0];
     values[ops[pc].destination] = arg * arg;
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_neg(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_neg(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = -values[ops[pc].unary.a0];
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_add(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_add(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = values[ops[pc].binary.a0] + values[ops[pc].binary.a1];
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_sub(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_sub(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = values[ops[pc].binary.a0] - values[ops[pc].binary.a1];
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_mul(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_mul(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = values[ops[pc].binary.a0] * values[ops[pc].binary.a1];
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_min(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_min(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = fminf(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_max(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_max(struct op ops[], int pc, float x, float y) {
     values[ops[pc].destination] = fmaxf(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
-    MUSTTAIL return dispatch(ops, pc + 1, values, x, y);
+    MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float __attribute__((regcall)) execute_done(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL execute_done(struct op ops[], int pc, float x, float y) {
     return values[ops[pc].unary.a0];
 }
 
-float __attribute__((regcall)) dispatch(struct op ops[], int pc, float values[], float x, float y) {
+float REGCALL dispatch(struct op ops[], int pc, float x, float y) {
     enum func f = ops[pc].f;
     switch (f) {
         case func_varx:
-            MUSTTAIL return execute_varx(ops, pc, values, x, y);
+            MUSTTAIL return execute_varx(ops, pc, x, y);
         case func_vary:
-            MUSTTAIL return execute_vary(ops, pc, values, x, y);
+            MUSTTAIL return execute_vary(ops, pc, x, y);
         case func_varz:
-            MUSTTAIL return execute_varz(ops, pc, values, x, y);
+            MUSTTAIL return execute_varz(ops, pc, x, y);
         case func_const:
-            MUSTTAIL return execute_const(ops, pc, values, x, y);
+            MUSTTAIL return execute_const(ops, pc, x, y);
         case func_abs:
-            MUSTTAIL return execute_abs(ops, pc, values, x, y);
+            MUSTTAIL return execute_abs(ops, pc, x, y);
         case func_sqrt:
-            MUSTTAIL return execute_sqrt(ops, pc, values, x, y);
+            MUSTTAIL return execute_sqrt(ops, pc, x, y);
         case func_square:
-            MUSTTAIL return execute_square(ops, pc, values, x, y);
+            MUSTTAIL return execute_square(ops, pc, x, y);
         case func_neg:
-            MUSTTAIL return execute_neg(ops, pc, values, x, y);
+            MUSTTAIL return execute_neg(ops, pc, x, y);
         case func_add:
-            MUSTTAIL return execute_add(ops, pc, values, x, y);
+            MUSTTAIL return execute_add(ops, pc, x, y);
         case func_sub:
-            MUSTTAIL return execute_sub(ops, pc, values, x, y);
+            MUSTTAIL return execute_sub(ops, pc, x, y);
         case func_mul:
-            MUSTTAIL return execute_mul(ops, pc, values, x, y);
+            MUSTTAIL return execute_mul(ops, pc, x, y);
         case func_min:
-            MUSTTAIL return execute_min(ops, pc, values, x, y);
+            MUSTTAIL return execute_min(ops, pc, x, y);
         case func_max:
-            MUSTTAIL return execute_max(ops, pc, values, x, y);
+            MUSTTAIL return execute_max(ops, pc, x, y);
         case func_done:
-            MUSTTAIL return execute_done(ops, pc, values, x, y);
+            MUSTTAIL return execute_done(ops, pc, x, y);
         default:
             return NAN;
     }
@@ -163,7 +166,7 @@ void render_naive(struct op ops[], int height, uint8_t* pixels) {
         float x = minx + (maxx - minx) / (float)(height - 1) * column_index;
         float y = miny + (maxy - miny) / (float)(height - 1) * row_index;
         // call dispatch
-        float result = dispatch(ops, 0, values, x, y);
+        float result = dispatch(ops, 0, x, y);
         // print the result with x and y
         // printf("%f %f %f\n", x, y, result);
         // printf("%f %f %f %i %i\n", x, y, result, i, result > 0.0? 255 : 0);
