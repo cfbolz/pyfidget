@@ -25,7 +25,7 @@ enum func {
 };
 
 // tagged union
-struct __attribute__((packed)) op {
+struct op {
     union {
         // constant
         float constant;
@@ -39,7 +39,7 @@ struct __attribute__((packed)) op {
             uint16_t a0;
         } unary;
     };
-    uint16_t destination;
+    //uint16_t destination;
     enum func f;
 };
 
@@ -53,68 +53,68 @@ float REGCALL dispatch(struct op ops[], int pc, float x, float y);
 float values[65536];
 
 float REGCALL execute_varx(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = x;
+    values[pc] = x;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_vary(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = y;
+    values[pc] = y;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_varz(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = 0;
+    values[pc] = 0;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_const(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = ops[pc].constant;
+    values[pc] = ops[pc].constant;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_abs(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = fabsf(values[ops[pc].unary.a0]);
+    values[pc] = fabsf(values[ops[pc].unary.a0]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_sqrt(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = sqrtf(values[ops[pc].unary.a0]);
+    values[pc] = sqrtf(values[ops[pc].unary.a0]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_square(struct op ops[], int pc, float x, float y) {
     float arg = values[ops[pc].unary.a0];
-    values[ops[pc].destination] = arg * arg;
+    values[pc] = arg * arg;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_neg(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = -values[ops[pc].unary.a0];
+    values[pc] = -values[ops[pc].unary.a0];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_add(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = values[ops[pc].binary.a0] + values[ops[pc].binary.a1];
+    values[pc] = values[ops[pc].binary.a0] + values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_sub(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = values[ops[pc].binary.a0] - values[ops[pc].binary.a1];
+    values[pc] = values[ops[pc].binary.a0] - values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_mul(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = values[ops[pc].binary.a0] * values[ops[pc].binary.a1];
+    values[pc] = values[ops[pc].binary.a0] * values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_min(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = fminf(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
+    values[pc] = fminf(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float REGCALL execute_max(struct op ops[], int pc, float x, float y) {
-    values[ops[pc].destination] = fmaxf(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
+    values[pc] = fmaxf(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
@@ -256,7 +256,7 @@ struct op parse_op(char* line, char* names[], uint16_t count) {
         fprintf(stderr, "Error: unknown operator %s\n", operator);
         exit(1);
     }
-    op.destination = count;
+    //op.destination = count;
     // parse the arguments, depending on the operator
     switch (op.f) {
         case func_varx:
@@ -311,7 +311,7 @@ struct op* parse(FILE *f) {
     // terminate with a done op
     struct op done;
     done.f = func_done;
-    done.destination = count;
+    //done.destination = count;
     done.unary.a0 = count - 1;
     ops[count++] = done;
     // free the names array
