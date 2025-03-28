@@ -641,6 +641,7 @@ struct op* optimize(struct op* ops, float minx, float maxx, float miny, float ma
         }
     }
     uint16_t last_op = opt->opreplacements[i];
+    printf("output range, analyzed: %f-%f\n", opt->intervals[last_op].min, opt->intervals[last_op].max);
     //printf("before dce\n");
     //print_ops(opt->resultops);
     opt_dead_code_elimination(opt, last_op);
@@ -708,13 +709,14 @@ void print_ops(struct op ops[]) {
 
 void render_naive_fragment(struct op ops[], int height, uint8_t* pixels, float minx, float maxx, float miny, float maxy, int startx, int stopx, int starty, int stopy) {
     int width = height; // Assuming square image
-    float dx = (maxx - minx) / (width - 1);
+    float dx = (maxx - minx) / (float)(width - 1);
     for (int row_index = starty; row_index < stopy; row_index++) {
-        float y = miny + (maxy - miny) * row_index / (height - 1);
+        float y = miny + (maxy - miny) * row_index / (float)(height - 1);
         float x = minx + dx * startx;
         int index = row_index * width + startx;
         for (int column_index = startx; column_index < stopx; column_index++) {
             float res = dispatch(ops, 0, x, y);
+            printf("%f %f %f\n", x, y, res);
             pixels[index] = (res <= 0.0) ? 0 : 255;
             index++;
             x += dx;
@@ -727,10 +729,11 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     // use intervals to check for uniform color
     //print("==" * level, startx, stopx, starty, stopy)
     float minx = -1, maxx = 1, miny = -1, maxy = 1;
-    float a = minx + (maxx - minx) * startx / (height - 1);
-    float b = minx + (maxx - minx) * (stopx - 1) / (height - 1);
-    float c = miny + (maxy - miny) * starty / (height - 1);
-    float d = miny + (maxy - miny) * (stopy - 1) / (height - 1);
+    float a = minx + (maxx - minx) * (float)startx / (float)(height - 1);
+    float b = minx + (maxx - minx) * (float)(stopx - 1) / (float)(height - 1);
+    float c = miny + (maxy - miny) * (float)starty / (float)(height - 1);
+    float d = miny + (maxy - miny) * (float)(stopy - 1) / (float)(height - 1);
+    printf("%f-%f, %f-%f\n", a, b, c, d);
     struct op* newprogram = optimize(ops, a, b, c, d);
     // check whether area is small enough to switch to naive evaluation
     if (stopx - startx <= 8 || stopy - starty <= 8) {
@@ -739,8 +742,8 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
         free(newprogram);
         return;
     }
-    float midx = (startx + stopx) / 2;
-    float midy = (starty + stopy) / 2;
+    int midx = (startx + stopx) / 2;
+    int midy = (starty + stopy) / 2;
     render_image_octree_rec_optimize(newprogram, height, pixels, startx, midx, starty, midy);
     render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, starty, midy);
     render_image_octree_rec_optimize(newprogram, height, pixels, startx, midx, midy, stopy);
