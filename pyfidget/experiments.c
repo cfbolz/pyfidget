@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
+#include <stdbool.h>
 
 enum func {
     func_varx,
@@ -40,7 +41,8 @@ struct op {
         } unary;
     };
     //uint16_t destination;
-    enum func f;
+    enum func f : 6;
+    bool should_return_if_neg : 1;
 };
 
 #define MUSTTAIL __attribute__((musttail))
@@ -123,6 +125,12 @@ float REGCALL execute_done(struct op ops[], int pc, float x, float y) {
 }
 
 float REGCALL dispatch(struct op ops[], int pc, float x, float y) {
+    if (pc) {
+        float res;
+        if (ops[pc - 1].should_return_if_neg && (res = values[pc - 1]) <= 0.0) {
+            return res;
+        }
+    }
     enum func f = ops[pc].f;
     switch (f) {
         case func_varx:
@@ -246,12 +254,14 @@ uint16_t opt_default(struct op newop, struct optimizer* opt, struct interval int
 uint16_t opt_default0(enum func f, struct optimizer* opt, struct interval interval) {
     struct op newop;
     newop.f = f;
+    newop.should_return_if_neg = false;
     return opt_default(newop, opt, interval);
 }
 
 uint16_t opt_default1(enum func f, struct optimizer* opt, struct interval interval, uint16_t arg0) {
     struct op newop;
     newop.f = f;
+    newop.should_return_if_neg = false;
     newop.unary.a0 = arg0;
     return opt_default(newop, opt, interval);
 }
@@ -259,6 +269,7 @@ uint16_t opt_default1(enum func f, struct optimizer* opt, struct interval interv
 uint16_t opt_default2(enum func f, struct optimizer* opt, struct interval interval, uint16_t arg0, uint16_t arg1) {
     struct op newop;
     newop.f = f;
+    newop.should_return_if_neg = false;
     newop.binary.a0 = arg0;
     newop.binary.a1 = arg1;
     return opt_default(newop, opt, interval);
@@ -267,6 +278,7 @@ uint16_t opt_default2(enum func f, struct optimizer* opt, struct interval interv
 uint16_t opt_newconst(struct optimizer* opt, float constant) {
     struct op newop;
     newop.f = func_const;
+    newop.should_return_if_neg = false;
     newop.constant = constant;
     opt->resultops[opt->count] = newop;
     struct interval newinterval;
@@ -648,6 +660,25 @@ struct optresult {
     struct op* ops;
 };
 
+int opt_convert_to_shortcut_min(struct optimizer* opt, uint16_t lastop) {
+    int converted = 0;
+    while (1) {
+        struct op op = opt->resultops[lastop];
+        if (op.f == func_const) {
+            break;
+        }
+        op.should_return_if_neg = true;
+        if (op.f == func_min) {
+            converted += 1;
+            lastop = op.binary.a0;
+            converted += opt_convert_to_shortcut_min(opt, op.binary.a1);
+            continue;
+        }
+        break;
+    }
+    return converted;
+}
+
 uint16_t opt_work_backwards(struct optimizer* opt, uint16_t lastop) {
     while (1) {
         struct op op = opt->resultops[lastop];
@@ -664,6 +695,8 @@ uint16_t opt_work_backwards(struct optimizer* opt, uint16_t lastop) {
                 lastop = op.binary.a0;
                 continue;
             }
+            opt_convert_to_shortcut_min(opt, lastop);
+            return lastop;
         }
         return lastop;
     }
@@ -682,6 +715,11 @@ struct optresult optimize(struct op* ops, float minx, float maxx, float miny, fl
         struct op op = ops[i];
         uint16_t newopindex = opt_op(op, opt);
         opt->opreplacements[i] = newopindex;
+        if (op.should_return_if_neg) {
+            if (opt->intervals[newopindex].max <= 0.0) {
+                break;
+            }
+        }
         if (op.f == func_done) {
             break;
         }
@@ -699,6 +737,7 @@ struct optresult optimize(struct op* ops, float minx, float maxx, float miny, fl
     if (last_op != opt->opreplacements[i]) {
         struct op done;
         done.f = func_done;
+        done.should_return_if_neg = false;
         done.unary.a0 = last_op++;
         opt->resultops[last_op] = done;
     }
@@ -896,6 +935,7 @@ struct op parse_op(char* line, char* names[], uint16_t count) {
     // parse the operator
     char* operator = strtok(NULL, " ");
     op.f = parse_operator_name(operator);
+    op.should_return_if_neg = false;
     if (op.f == -1) {
         fprintf(stderr, "Error: unknown operator %s\n", operator);
         exit(1);
@@ -954,6 +994,7 @@ struct op* parse(FILE *f) {
     // terminate with a done op
     struct op done;
     done.f = func_done;
+    done.should_return_if_neg = false;
     //done.destination = count;
     done.unary.a0 = count - 1;
     ops[count++] = done;
