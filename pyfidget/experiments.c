@@ -176,7 +176,7 @@ void render_naive(struct op ops[], int height, uint8_t* pixels) {
         //    putchar('\n');
         //}
         //putchar(result > 0.0 ? ' ' : '#');
-        pixels[i] = result > 0 ? 255 : 0;
+        pixels[i] = (result > 0.0) ? 0 : 255;
     }
 }
 
@@ -623,7 +623,13 @@ void opt_dead_code_elimination(struct optimizer* opt, int last_op) {
 
 void print_ops(struct op ops[]);
 
-struct op* optimize(struct op* ops, float minx, float maxx, float miny, float maxy) {
+struct optresult {
+    float min;
+    float max;
+    struct op* ops;
+};
+
+struct optresult optimize(struct op* ops, float minx, float maxx, float miny, float maxy) {
     // create the optimizer
     struct optimizer* opt = create_optimizer(ops);
     opt->minx = minx;
@@ -641,7 +647,14 @@ struct op* optimize(struct op* ops, float minx, float maxx, float miny, float ma
         }
     }
     uint16_t last_op = opt->opreplacements[i];
-    printf("output range, analyzed: %f-%f\n", opt->intervals[last_op].min, opt->intervals[last_op].max);
+    struct optresult res;
+    res.min = opt->intervals[last_op].min;
+    res.max = opt->intervals[last_op].max;
+    res.ops = NULL;
+    if (res.min > 0.0 || res.max <= 0.0) {
+        return res;
+    }
+    printf("output range, analyzed: %f-%f\n", res.min, res.max);
     //printf("before dce\n");
     //print_ops(opt->resultops);
     opt_dead_code_elimination(opt, last_op);
@@ -649,7 +662,7 @@ struct op* optimize(struct op* ops, float minx, float maxx, float miny, float ma
     //print_ops(opt->resultops);
     //printf("____\n");
     // return the optimized ops
-    struct op* res = opt->resultops;
+    res.ops = opt->resultops;
     opt->resultops = NULL;
     destroy_optimizer(opt);
     return res;
@@ -717,7 +730,7 @@ void render_naive_fragment(struct op ops[], int height, uint8_t* pixels, float m
         for (int column_index = startx; column_index < stopx; column_index++) {
             float res = dispatch(ops, 0, x, y);
             printf("%f %f %f\n", x, y, res);
-            pixels[index] = (res <= 0.0) ? 0 : 255;
+            pixels[index] = (res > 0.0) ? 0 : 255;
             index++;
             x += dx;
         }
@@ -734,7 +747,23 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     float c = miny + (maxy - miny) * (float)starty / (float)(height - 1);
     float d = miny + (maxy - miny) * (float)(stopy - 1) / (float)(height - 1);
     printf("%f-%f, %f-%f\n", a, b, c, d);
-    struct op* newprogram = optimize(ops, a, b, c, d);
+    struct optresult res = optimize(ops, a, b, c, d);
+    if (res.min > 0.0) {
+        return;
+    }
+    if (res.max <= 0.0) {
+        printf("all white\n");
+        int width = height; // Assuming square image
+        for (int row_index = starty; row_index < stopy; row_index++) {
+            int index = row_index * width + startx;
+            for (int column_index = startx; column_index < stopx; column_index++) {
+                pixels[index] = 100;
+                index++;
+            }
+        }
+        return;
+    }
+    struct op* newprogram = res.ops;
     // check whether area is small enough to switch to naive evaluation
     if (stopx - startx <= 8 || stopy - starty <= 8) {
         // call naive evaluation
