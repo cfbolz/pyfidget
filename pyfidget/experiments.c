@@ -648,7 +648,10 @@ struct op* optimize(struct op* ops, float minx, float maxx, float miny, float ma
     //print_ops(opt->resultops);
     //printf("____\n");
     // return the optimized ops
-    return opt->resultops;
+    struct op* res = opt->resultops;
+    opt->resultops = NULL;
+    destroy_optimizer(opt);
+    return res;
 }
 
 void print_ops(struct op ops[]) {
