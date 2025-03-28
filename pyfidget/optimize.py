@@ -92,7 +92,7 @@ def optimize(program, a, b, c, d, e, f, for_direct=True):
         opt.delete()
         resultops.delete()
         return None, minimum, maximum
-    #result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues, for_direct=for_direct)
+    result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues, for_direct=for_direct)
     res = opt.dce(result)
     print("opt output %f %f %f %f range %f %f:" % (a, b, c, d, minimum, maximum))
     print(res)

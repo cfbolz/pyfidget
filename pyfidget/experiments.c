@@ -167,15 +167,6 @@ void render_naive(struct op ops[], int height, uint8_t* pixels) {
         float y = miny + (maxy - miny) / (float)(height - 1) * row_index;
         // call dispatch
         float result = dispatch(ops, 0, x, y);
-        // print the result with x and y
-        // printf("%f %f %f\n", x, y, result);
-        // printf("%f %f %f %i %i\n", x, y, result, i, result > 0.0? 255 : 0);
-        // put newline if i % height == 0
-        //if (i % height == 0) {
-        //    putchar('|');
-        //    putchar('\n');
-        //}
-        //putchar(result > 0.0 ? ' ' : '#');
         pixels[i] = (result > 0.0) ? 0 : 255;
     }
 }
@@ -701,13 +692,9 @@ struct optresult optimize(struct op* ops, float minx, float maxx, float miny, fl
     res.max = opt->intervals[last_op].max;
     res.ops = NULL;
     if (res.min > 0.0 || res.max <= 0.0) {
-        //printf("no ops needed: %f %f %f %f range %f %f\n", minx, maxx, miny, maxy, res.min, res.max);
         destroy_optimizer(opt);
         return res;
     }
-    //printf("output range, analyzed: %f-%f\n", res.min, res.max);
-    //printf("before dce\n");
-    //print_ops(opt->resultops);
     last_op = opt_work_backwards(opt, last_op);
     if (last_op != opt->opreplacements[i]) {
         struct op done;
@@ -716,11 +703,6 @@ struct optresult optimize(struct op* ops, float minx, float maxx, float miny, fl
         opt->resultops[last_op] = done;
     }
     opt_dead_code_elimination(opt, last_op);
-    //printf("after dce\n");
-    //printf("opt output %f %f %f %f range %f %f:\n", minx, maxx, miny, maxy, res.min, res.max);
-    //print_ops(opt->resultops);
-    //printf("____\n");
-    // return the optimized ops
     res.ops = opt->resultops;
     opt->resultops = NULL;
     destroy_optimizer(opt);
