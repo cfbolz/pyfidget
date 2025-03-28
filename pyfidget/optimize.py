@@ -88,16 +88,19 @@ def optimize(program, a, b, c, d, e, f, for_direct=True):
     minimum = opt.intervalframe.minvalues[result]
     maximum = opt.intervalframe.maxvalues[result]
     if (isfinite(minimum) and isfinite(maximum)) and (minimum > 0.0 or maximum <= 0):
+        print("no ops needed: %f %f %f %f range %f %f" % (a, b, c, d, minimum, maximum))
         opt.delete()
         resultops.delete()
         return None, minimum, maximum
-    result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues, for_direct=for_direct)
+    #result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues, for_direct=for_direct)
     res = opt.dce(result)
-    if not objectmodel.we_are_translated() and for_direct:
-        print(res.pretty_format())
-        if 50 < res.num_operations() < 1000:
-            d = collect_uses(res)
-            #graph(res, d)
+    print("opt output %f %f %f %f range %f %f:" % (a, b, c, d, minimum, maximum))
+    print(res)
+    #if not objectmodel.we_are_translated() and for_direct:
+    #    print(res.pretty_format())
+    #    if 50 < res.num_operations() < 1000:
+    #        d = collect_uses(res)
+    #        #graph(res, d)
 
     opt.delete()
     #if not objectmodel.we_are_translated():

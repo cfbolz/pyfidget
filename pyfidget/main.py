@@ -43,7 +43,7 @@ def main(argv):
     data = None
     if phase == 0 or phase == 1:
         frame = DirectFrame.new(operations)
-        data = render_image_naive(frame, length // 2, length // 2, *args)
+        data = render_image_naive(frame, length, length, *args)
         frame.delete()
         t2 = time.time()
         print("time, naive: %s (scaled)" % ((t2 - t1) * 4))

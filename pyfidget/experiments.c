@@ -652,13 +652,15 @@ struct optresult optimize(struct op* ops, float minx, float maxx, float miny, fl
     res.max = opt->intervals[last_op].max;
     res.ops = NULL;
     if (res.min > 0.0 || res.max <= 0.0) {
+        //printf("no ops needed: %f %f %f %f range %f %f\n", minx, maxx, miny, maxy, res.min, res.max);
         return res;
     }
-    printf("output range, analyzed: %f-%f\n", res.min, res.max);
+    //printf("output range, analyzed: %f-%f\n", res.min, res.max);
     //printf("before dce\n");
     //print_ops(opt->resultops);
     opt_dead_code_elimination(opt, last_op);
     //printf("after dce\n");
+    //printf("opt output %f %f %f %f range %f %f:\n", minx, maxx, miny, maxy, res.min, res.max);
     //print_ops(opt->resultops);
     //printf("____\n");
     // return the optimized ops
@@ -717,19 +719,20 @@ void print_ops(struct op ops[]) {
                 break;
         }
     }
-    printf("_%x done _%x\n", i, ops[i].unary.a0);
+    //printf("_%x done _%x\n", i, ops[i].unary.a0);
 }
 
 void render_naive_fragment(struct op ops[], int height, uint8_t* pixels, float minx, float maxx, float miny, float maxy, int startx, int stopx, int starty, int stopy) {
     int width = height; // Assuming square image
     float dx = (maxx - minx) / (float)(width - 1);
+    //printf("start naive %f %f %f %f dx: %f (%i %i %i %i)\n", minx, maxx, miny, maxy, dx, startx, stopx, starty, stopy);
     for (int row_index = starty; row_index < stopy; row_index++) {
         float y = miny + (maxy - miny) * row_index / (float)(height - 1);
         float x = minx + dx * startx;
         int index = row_index * width + startx;
         for (int column_index = startx; column_index < stopx; column_index++) {
             float res = dispatch(ops, 0, x, y);
-            printf("%f %f %f\n", x, y, res);
+            //printf("naive %i %f %f %f\n", index, x, y, res);
             pixels[index] = (res > 0.0) ? 0 : 255;
             index++;
             x += dx;
@@ -746,13 +749,13 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     float b = minx + (maxx - minx) * (float)(stopx - 1) / (float)(height - 1);
     float c = miny + (maxy - miny) * (float)starty / (float)(height - 1);
     float d = miny + (maxy - miny) * (float)(stopy - 1) / (float)(height - 1);
-    printf("%f-%f, %f-%f\n", a, b, c, d);
+    //printf("%f-%f, %f-%f\n", a, b, c, d);
     struct optresult res = optimize(ops, a, b, c, d);
     if (res.min > 0.0) {
         return;
     }
     if (res.max <= 0.0) {
-        printf("all white\n");
+        //printf("all white\n");
         int width = height; // Assuming square image
         for (int row_index = starty; row_index < stopy; row_index++) {
             int index = row_index * width + startx;
@@ -767,15 +770,15 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     // check whether area is small enough to switch to naive evaluation
     if (stopx - startx <= 8 || stopy - starty <= 8) {
         // call naive evaluation
-        render_naive_fragment(newprogram, height, pixels, a, b, c, d, startx, stopx, starty, stopy);
+        render_naive_fragment(newprogram, height, pixels, minx, maxx, miny, maxy, startx, stopx, starty, stopy);
         free(newprogram);
         return;
     }
     int midx = (startx + stopx) / 2;
     int midy = (starty + stopy) / 2;
     render_image_octree_rec_optimize(newprogram, height, pixels, startx, midx, starty, midy);
-    render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, starty, midy);
     render_image_octree_rec_optimize(newprogram, height, pixels, startx, midx, midy, stopy);
+    render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, starty, midy);
     render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, midy, stopy);
     free(newprogram);
 }

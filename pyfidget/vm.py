@@ -112,12 +112,19 @@ class ProgramBuilder(object):
         return r[0]
 
     def _op_to_str(self, i, result):
-        func, arg0, arg1 = self.get_func_and_args(i)
-        func = OPS.char_to_name(func)
+        funcchar, arg0, arg1 = self.get_func_and_args(i)
+        func = OPS.char_to_name(funcchar)
         if func.startswith("const"):
-            result.append("_%x %s %s" % (i, func, self.consts[arg0]))
+            result.append("_%x %s %f" % (i, func, self.consts[arg0]))
         else:
-            result.append("_%x %s _%x _%x" % (i, func, arg0, arg1))
+            if OPS.num_args(funcchar) == 0:
+                result.append("_%x %s" % (i, func))
+            elif OPS.num_args(funcchar) == 1:
+                result.append("_%x %s _%x" % (i, func, arg0))
+            elif OPS.num_args(funcchar) == 2:
+                result.append("_%x %s _%x _%x" % (i, func, arg0, arg1))
+            else:
+                assert 0
 
     def pretty_format(self):
         result = []
@@ -541,6 +548,7 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
 def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy):
     num_pixels = width * height
     dx = (maxx - minx) / (width - 1)
+    print("start naive %f %f %f %f dx: %f (%i %i %i %i)" %( minx, maxx, miny, maxy, dx, startx, stopx, starty, stopy))
     for row_index in range(starty, stopy):
         y = miny + (maxy - miny) * row_index / (height - 1)
         x = minx + dx * startx
@@ -549,6 +557,7 @@ def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, re
             driver_render_part.jit_merge_point(program=frame.program)
             jit.promote(frame.program)
             res = frame.run_floats(x, y, 0)
+            print("naive %i %f %f %f" % ( index, x, y, res))
             result[index] = chr(res <= 0.0)
             index += 1
             x += dx
@@ -631,8 +640,8 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
     midy = (starty + stopy) // 2
     for new_startx, new_stopx in [(startx, midx), (midx, stopx)]:
         for new_starty, new_stopy in [(starty, midy), (midy, stopy)]:
-            if not objectmodel.we_are_translated():
-                print("====================================", level, new_startx, new_stopx, new_starty, new_stopy)
+            #if not objectmodel.we_are_translated():
+            #    print("====================================", level, new_startx, new_stopx, new_starty, new_stopy)
             render_image_octree_rec_optimize(newprogram, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
     newprogram.delete()
 
