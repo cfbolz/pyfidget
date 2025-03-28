@@ -548,7 +548,6 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
 def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy):
     num_pixels = width * height
     dx = (maxx - minx) / (width - 1)
-    print("start naive %f %f %f %f dx: %f (%i %i %i %i)" %( minx, maxx, miny, maxy, dx, startx, stopx, starty, stopy))
     for row_index in range(starty, stopy):
         y = miny + (maxy - miny) * row_index / (height - 1)
         x = minx + dx * startx
@@ -557,7 +556,6 @@ def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, re
             driver_render_part.jit_merge_point(program=frame.program)
             jit.promote(frame.program)
             res = frame.run_floats(x, y, 0)
-            print("naive %i %f %f %f" % ( index, x, y, res))
             result[index] = chr(res <= 0.0)
             index += 1
             x += dx
@@ -611,29 +609,32 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
     # use intervals to check for uniform color
 
     #print("==" * level, startx, stopx, starty, stopy)
-    a = minx + (maxx - minx) * startx / (width - 1)
-    b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
-    c = miny + (maxy - miny) * starty / (height - 1)
-    d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
+    if level:
+        a = minx + (maxx - minx) * startx / (width - 1)
+        b = minx + (maxx - minx) * (stopx - 1) / (width - 1)
+        c = miny + (maxy - miny) * starty / (height - 1)
+        d = miny + (maxy - miny) * (stopy - 1) / (height - 1)
 
-    direct = stopx - startx <= LIMIT or stopy - starty <= LIMIT
-    newprogram, minimum, maximum = opt_program(program, a, b, c, d, 0.0, 0.0, for_direct=direct)
-    if maximum < 0:
-        # completely inside
-        _fill_black(width, height, result, startx, stopx, starty, stopy)
-        return
-    elif minimum > 0:
-        # completely outside, no need to change color
-        return
-    assert newprogram is not None
+        direct = stopx - startx <= LIMIT or stopy - starty <= LIMIT
+        newprogram, minimum, maximum = opt_program(program, a, b, c, d, 0.0, 0.0, for_direct=direct)
+        if maximum < 0:
+            # completely inside
+            _fill_black(width, height, result, startx, stopx, starty, stopy)
+            return
+        elif minimum > 0:
+            # completely outside, no need to change color
+            return
+        assert newprogram is not None
 
-    # check whether area is small enough to switch to naive evaluation
-    if direct:
-        frame = DirectFrame.new(newprogram)
-        render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
-        frame.delete()
-        newprogram.delete()
-        return
+        # check whether area is small enough to switch to naive evaluation
+        if direct:
+            frame = DirectFrame.new(newprogram)
+            render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy)
+            frame.delete()
+            newprogram.delete()
+            return
+    else:
+        newprogram = program
     if newprogram.num_operations() < 500:
         driver_octree_optimize.jit_merge_point(program=newprogram)
     midx = (startx + stopx) // 2
@@ -643,7 +644,8 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
             #if not objectmodel.we_are_translated():
             #    print("====================================", level, new_startx, new_stopx, new_starty, new_stopy)
             render_image_octree_rec_optimize(newprogram, width, height, minx, maxx, miny, maxy, result, new_startx, new_stopx, new_starty, new_stopy, level+1)
-    newprogram.delete()
+    if level:
+        newprogram.delete()
 
 def render_image_octree_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy):
     result = ['\x00'] * (width * height)
