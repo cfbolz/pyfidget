@@ -180,6 +180,24 @@ void render_naive(struct op ops[], int height, uint8_t* pixels) {
     }
 }
 
+void* free_ops = NULL;
+
+
+struct op* create_ops() {
+    void** ops = (void**)free_ops;
+    if (ops) {
+        free_ops = *ops;
+        *ops = NULL;
+        return (struct op*)ops;
+    }
+    return malloc(sizeof(struct op) * 65536);
+}
+
+void destroy_ops(void** ops) {
+    *ops = free_ops;
+    free_ops = ops;
+}
+
 // optimizing
 
 struct interval {
@@ -207,14 +225,14 @@ struct optimizer* create_optimizer(struct op* ops) {
     if (opt) {
         free_optimizers = opt->next_free;
         if (!opt->resultops) {
-            opt->resultops = malloc(sizeof(struct op) * 65536);
+            opt->resultops = create_ops();
         }
         opt->ops = ops;
         return opt;
     }
     opt = malloc(sizeof(struct optimizer));
     opt->ops = ops;
-    opt->resultops = malloc(sizeof(struct op) * 65536);
+    opt->resultops = create_ops();
     opt->count = 0;
     opt->intervals = malloc(sizeof(struct interval) * 65536);
     opt->opreplacements = calloc(sizeof(uint16_t), 65536);
@@ -665,6 +683,7 @@ struct optresult optimize(struct op* ops, float minx, float maxx, float miny, fl
     res.ops = NULL;
     if (res.min > 0.0 || res.max <= 0.0) {
         //printf("no ops needed: %f %f %f %f range %f %f\n", minx, maxx, miny, maxy, res.min, res.max);
+        destroy_optimizer(opt);
         return res;
     }
     //printf("output range, analyzed: %f-%f\n", res.min, res.max);
@@ -912,7 +931,7 @@ struct op parse_op(char* line, char* names[], uint16_t count) {
 struct op* parse(FILE *f) {
     // read the file and parse the ops
     // this is a stub, you need to implement the parsing logic
-    struct op* ops = malloc(sizeof(struct op) * 65536);
+    struct op* ops = create_ops();
     char* names[65536];
     size_t count = 0;
     char line[1024];
