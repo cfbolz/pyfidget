@@ -536,6 +536,91 @@ uint16_t opt_op(struct op op, struct optimizer* opt) {
     }
 }
 
+void opt_dead_code_elimination(struct optimizer* opt, int last_op) {
+    // reuse the opreplacements array to mark the ops that are used
+    // mark all ops as unused
+    for (int i = 0; i < last_op; i++) {
+        opt->opreplacements[i] = 0;
+    }
+    // mark the last op as used
+    opt->opreplacements[last_op] = 1;
+    // mark the ops that are used by going backwards through the ops
+    for (int i = last_op; i >= 0; i--) {
+        // if the op is used, mark the arguments as used
+        if (opt->opreplacements[i] == 1) {
+            struct op op = opt->resultops[i];
+            switch (op.f) {
+                case func_varx:
+                case func_vary:
+                case func_varz:
+                case func_const:
+                    break;
+                case func_abs:
+                case func_sqrt:
+                case func_square:
+                case func_neg:
+                case func_done:
+                    opt->opreplacements[op.unary.a0] = 1;
+                    break;
+                case func_add:
+                case func_sub:
+                case func_mul:
+                case func_min:
+                case func_max:
+                    opt->opreplacements[op.binary.a0] = 1;
+                    opt->opreplacements[op.binary.a1] = 1;
+                    break;
+            }
+        }
+    }
+    // now we can remove the unused ops
+    // go through the ops and remove the unused ones, by modifying opt->resultops in place
+    // we now reuse the opreplacements array to save the new positions of already moved (and thus surviving) ops
+    opt->count = 0;
+    for (int i = 0; i <= last_op; i++) {
+        // if the op is not used, skip it
+        if (opt->opreplacements[i] == 0) {
+            continue;
+        }
+        // the op is used, so we need to move it to the new position and update its arguments (which were moved)
+        // the new position is the current count
+        struct op newop;
+        newop = opt->resultops[i];
+        // update the arguments
+        switch (newop.f) {
+            case func_varx:
+            case func_vary:
+            case func_varz:
+            case func_const:
+                break;
+            case func_abs:
+            case func_sqrt:
+            case func_square:
+            case func_neg:
+            case func_done:
+                newop.unary.a0 = opt->opreplacements[newop.unary.a0];
+                break;
+            case func_add:
+            case func_sub:
+            case func_mul:
+            case func_min:
+            case func_max:
+                newop.binary.a0 = opt->opreplacements[newop.binary.a0];
+                newop.binary.a1 = opt->opreplacements[newop.binary.a1];
+                break;
+        }
+        // now we can move the op to the new position
+        opt->resultops[opt->count] = newop;
+        // update the intervals
+        opt->intervals[opt->count] = opt->intervals[i];
+        // update the opreplacements array
+        opt->opreplacements[i] = opt->count;
+        opt->count++;
+    }
+}
+
+void print_ops(struct op ops[]);
+
 struct op* optimize(struct op* ops, float minx, float maxx, float miny, float maxy) {
     // create the optimizer
     struct optimizer* opt = create_optimizer(ops);
@@ -544,15 +629,116 @@ struct op* optimize(struct op* ops, float minx, float maxx, float miny, float ma
     opt->miny = miny;
     opt->maxy = maxy;
     // optimize the ops
-    for (int i = 0; i < 65536; i++) {
+    int i = 0;
+    for (i = 0; i < 65536; i++) {
         struct op op = ops[i];
         uint16_t newopindex = opt_op(op, opt);
         opt->opreplacements[i] = newopindex;
+        if (op.f == func_done) {
+            break;
+        }
     }
+    printf("before dce\n");
+    print_ops(opt->resultops);
+    opt_dead_code_elimination(opt, i);
     // return the optimized ops
     return opt->resultops;
 }
 
+void print_ops(struct op ops[]) {
+    int i = 0;
+    for (; ops[i].f != func_done; i++) {
+        printf("_%x ", i);
+        switch (ops[i].f) {
+            case func_varx:
+                printf("var-x\n");
+                break;
+            case func_vary:
+                printf("var-y\n");
+                break;
+            case func_varz:
+                printf("var-z\n");
+                break;
+            case func_const:
+                printf("const %f\n", ops[i].constant);
+                break;
+            case func_abs:
+                printf("abs _%x\n", ops[i].unary.a0);
+                break;
+            case func_sqrt:
+                printf("sqrt _%x\n", ops[i].unary.a0);
+                break;
+            case func_square:
+                printf("square _%x\n", ops[i].unary.a0);
+                break;
+            case func_neg:
+                printf("neg _%x\n", ops[i].unary.a0);
+                break;
+            case func_add:
+                printf("add _%x _%x\n", ops[i].binary.a0, ops[i].binary.a1);
+                break;
+            case func_sub:
+                printf("sub _%x _%x\n", ops[i].binary.a0, ops[i].binary.a1);
+                break;
+            case func_mul:
+                printf("mul _%x _%x\n", ops[i].binary.a0, ops[i].binary.a1);
+                break;
+            case func_min:
+                printf("min _%x _%x\n", ops[i].binary.a0, ops[i].binary.a1);
+                break;
+            case func_max:
+                printf("max _%x _%x\n", ops[i].binary.a0, ops[i].binary.a1);
+                break;
+            default:
+                printf("unknown\n");
+                break;
+        }
+    }
+    printf("_%x done _%x\n", i, ops[i].unary.a0);
+}
+
+void render_naive_fragment(struct op ops[], int height, uint8_t* pixels, float minx, float maxx, float miny, float maxy, int startx, int stopx, int starty, int stopy) {
+    int width = height; // Assuming square image
+    float dx = (maxx - minx) / (width - 1);
+    for (int row_index = starty; row_index < stopy; row_index++) {
+        float y = miny + (maxy - miny) * row_index / (height - 1);
+        float x = minx + dx * startx;
+        int index = row_index * width + startx;
+        for (int column_index = startx; column_index < stopx; column_index++) {
+            float res = dispatch(ops, 0, x, y);
+            pixels[index] = (res <= 0.0) ? 0 : 255;
+            index++;
+            x += dx;
+        }
+    }
+}
+
+void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixels, int startx, int stopx, int starty, int stopy) {
+    // proof of concept
+    // use intervals to check for uniform color
+    //print("==" * level, startx, stopx, starty, stopy)
+    float minx = -1, maxx = 1, miny = -1, maxy = 1;
+    float a = minx + (maxx - minx) * startx / (height - 1);
+    float b = minx + (maxx - minx) * (stopx - 1) / (height - 1);
+    float c = miny + (maxy - miny) * starty / (height - 1);
+    float d = miny + (maxy - miny) * (stopy - 1) / (height - 1);
+    struct op* newprogram = optimize(ops, a, b, c, d);
+    print_ops(newprogram);
+    // check whether area is small enough to switch to naive evaluation
+    if (stopx - startx <= 8 || stopy - starty <= 8) {
+        // call naive evaluation
+        render_naive_fragment(newprogram, height, pixels, a, b, c, d, startx, stopx, starty, stopy);
+        free(newprogram);
+        return;
+    }
+    float midx = (startx + stopx) / 2;
+    float midy = (starty + stopy) / 2;
+    render_image_octree_rec_optimize(newprogram, height, pixels, startx, midx, starty, midy);
+    render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, starty, midy);
+    render_image_octree_rec_optimize(newprogram, height, pixels, startx, midx, midy, stopy);
+    render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, midy, stopy);
+    free(newprogram);
+}
 
 // parsing
 
@@ -668,7 +854,6 @@ struct op parse_op(char* line, char* names[], uint16_t count) {
     return op;
 }
 
-
 struct op* parse(FILE *f) {
     // read the file and parse the ops
     // this is a stub, you need to implement the parsing logic
@@ -714,10 +899,10 @@ int main(int argc, char *argv[]) {
 
     // time the execution or render_naive
     clock_t start = clock();
-    render_naive(ops, height, pixels);
+    render_image_octree_rec_optimize(ops, height, pixels, 0, height, 0, height);
     clock_t end = clock();
     double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("Elapsed time naive evaluation: %f seconds\n", elapsed);
+    printf("Elapsed time octree evaluation: %f seconds\n", elapsed);
     //putchar('\n');
     //putchar('-');
     // open the output file
