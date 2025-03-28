@@ -657,6 +657,27 @@ struct optresult {
     struct op* ops;
 };
 
+uint16_t opt_work_backwards(struct optimizer* opt, uint16_t lastop) {
+    while (1) {
+        struct op op = opt->resultops[lastop];
+        if (op.f == func_done) {
+            lastop = op.unary.a0;
+            continue;
+        }
+        if (op.f == func_min) {
+            if (opt->intervals[op.binary.a0].min > 0.0) {
+                lastop = op.binary.a1;
+                continue;
+            }
+            if (opt->intervals[op.binary.a1].min > 0.0) {
+                lastop = op.binary.a0;
+                continue;
+            }
+        }
+        return lastop;
+    }
+}
+
 struct optresult optimize(struct op* ops, float minx, float maxx, float miny, float maxy) {
     // create the optimizer
     struct optimizer* opt = create_optimizer(ops);
@@ -687,6 +708,13 @@ struct optresult optimize(struct op* ops, float minx, float maxx, float miny, fl
     //printf("output range, analyzed: %f-%f\n", res.min, res.max);
     //printf("before dce\n");
     //print_ops(opt->resultops);
+    last_op = opt_work_backwards(opt, last_op);
+    if (last_op != opt->opreplacements[i]) {
+        struct op done;
+        done.f = func_done;
+        done.unary.a0 = last_op++;
+        opt->resultops[last_op] = done;
+    }
     opt_dead_code_elimination(opt, last_op);
     //printf("after dce\n");
     //printf("opt output %f %f %f %f range %f %f:\n", minx, maxx, miny, maxy, res.min, res.max);
