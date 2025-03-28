@@ -820,9 +820,9 @@ uint16_t parse_arg(char* arg, char* names[], uint16_t count) {
     // parse the argument
     // it's always a name that must exist in the names list.
     // go through that list, compare the strings, return the index of said string
+    int len = strlen(arg);
+    if (arg[len - 1] == '\n') len--;
     for (uint16_t i = 0; i < count; i++) {
-        int len = strlen(arg);
-        if (arg[len - 1] == '\n') len--;
         if (strncmp(arg, names[i], len) == 0) {
             return i;
         }
