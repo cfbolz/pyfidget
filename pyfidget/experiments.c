@@ -643,8 +643,6 @@ void opt_dead_code_elimination(struct optimizer* opt, int last_op) {
         }
         // now we can move the op to the new position
         opt->resultops[opt->count] = newop;
-        // update the intervals
-        opt->intervals[opt->count] = opt->intervals[i];
         // update the opreplacements array
         opt->opreplacements[i] = opt->count;
         opt->count++;
