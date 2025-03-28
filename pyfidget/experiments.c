@@ -197,10 +197,22 @@ struct optimizer {
     float maxx;
     float miny;
     float maxy;
+    struct optimizer* next_free;
 };
 
+struct optimizer* free_optimizers = NULL;
+
 struct optimizer* create_optimizer(struct op* ops) {
-    struct optimizer* opt = malloc(sizeof(struct optimizer));
+    struct optimizer* opt = free_optimizers;
+    if (opt) {
+        free_optimizers = opt->next_free;
+        if (!opt->resultops) {
+            opt->resultops = malloc(sizeof(struct op) * 65536);
+        }
+        opt->ops = ops;
+        return opt;
+    }
+    opt = malloc(sizeof(struct optimizer));
     opt->ops = ops;
     opt->resultops = malloc(sizeof(struct op) * 65536);
     opt->count = 0;
@@ -210,10 +222,10 @@ struct optimizer* create_optimizer(struct op* ops) {
 }
 
 void destroy_optimizer(struct optimizer* opt) {
-    free(opt->resultops);
-    free(opt->intervals);
-    free(opt->opreplacements);
-    free(opt);
+    opt->ops = NULL;
+    opt->count = 0;
+    opt->next_free = free_optimizers;
+    free_optimizers = opt;
 }
 
 uint16_t opt_default(struct op newop, struct optimizer* opt, struct interval interval) {
