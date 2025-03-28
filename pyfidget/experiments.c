@@ -539,15 +539,17 @@ uint16_t opt_op(struct op op, struct optimizer* opt) {
 void opt_dead_code_elimination(struct optimizer* opt, int last_op) {
     // reuse the opreplacements array to mark the ops that are used
     // mark all ops as unused
+    const uint16_t DEAD = 0;
+    const uint16_t USED = 1;
     for (int i = 0; i < last_op; i++) {
-        opt->opreplacements[i] = 0;
+        opt->opreplacements[i] = DEAD;
     }
     // mark the last op as used
-    opt->opreplacements[last_op] = 1;
+    opt->opreplacements[last_op] = USED;
     // mark the ops that are used by going backwards through the ops
     for (int i = last_op; i >= 0; i--) {
         // if the op is used, mark the arguments as used
-        if (opt->opreplacements[i] == 1) {
+        if (opt->opreplacements[i] == USED) {
             struct op op = opt->resultops[i];
             switch (op.f) {
                 case func_varx:
@@ -560,15 +562,15 @@ void opt_dead_code_elimination(struct optimizer* opt, int last_op) {
                 case func_square:
                 case func_neg:
                 case func_done:
-                    opt->opreplacements[op.unary.a0] = 1;
+                    opt->opreplacements[op.unary.a0] = USED;
                     break;
                 case func_add:
                 case func_sub:
                 case func_mul:
                 case func_min:
                 case func_max:
-                    opt->opreplacements[op.binary.a0] = 1;
-                    opt->opreplacements[op.binary.a1] = 1;
+                    opt->opreplacements[op.binary.a0] = USED;
+                    opt->opreplacements[op.binary.a1] = USED;
                     break;
             }
         }
@@ -579,7 +581,7 @@ void opt_dead_code_elimination(struct optimizer* opt, int last_op) {
     opt->count = 0;
     for (int i = 0; i <= last_op; i++) {
         // if the op is not used, skip it
-        if (opt->opreplacements[i] == 0) {
+        if (opt->opreplacements[i] == DEAD) {
             continue;
         }
         // the op is used, so we need to move it to the new position and update its arguments (which were moved)
@@ -638,9 +640,13 @@ struct op* optimize(struct op* ops, float minx, float maxx, float miny, float ma
             break;
         }
     }
-    printf("before dce\n");
-    print_ops(opt->resultops);
-    opt_dead_code_elimination(opt, i);
+    uint16_t last_op = opt->opreplacements[i];
+    //printf("before dce\n");
+    //print_ops(opt->resultops);
+    opt_dead_code_elimination(opt, last_op);
+    //printf("after dce\n");
+    //print_ops(opt->resultops);
+    //printf("____\n");
     // return the optimized ops
     return opt->resultops;
 }
@@ -723,7 +729,6 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     float c = miny + (maxy - miny) * starty / (height - 1);
     float d = miny + (maxy - miny) * (stopy - 1) / (height - 1);
     struct op* newprogram = optimize(ops, a, b, c, d);
-    print_ops(newprogram);
     // check whether area is small enough to switch to naive evaluation
     if (stopx - startx <= 8 || stopy - starty <= 8) {
         // call naive evaluation
