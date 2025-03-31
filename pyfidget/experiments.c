@@ -53,82 +53,82 @@ typedef float float8 __attribute__((ext_vector_type(8)));
 typedef int int8 __attribute__((ext_vector_type(8)));
 typedef char char8 __attribute__((ext_vector_type(8)));
 
-float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float8 y);
+float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float y);
 
 
 float8 values[65536];
 
-float8 REGCALL execute_varx(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_varx(struct op ops[], int pc, float8 x, float y) {
     values[pc] = x;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_vary(struct op ops[], int pc, float8 x, float8 y) {
-    values[pc] = y;
+float8 REGCALL execute_vary(struct op ops[], int pc, float8 x, float y) {
+    values[pc] = (float8)y;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_varz(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_varz(struct op ops[], int pc, float8 x, float y) {
     values[pc] = 0;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_const(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_const(struct op ops[], int pc, float8 x, float y) {
     values[pc] = ops[pc].constant;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_abs(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_abs(struct op ops[], int pc, float8 x, float y) {
     values[pc] = __builtin_elementwise_abs(values[ops[pc].unary.a0]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_sqrt(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_sqrt(struct op ops[], int pc, float8 x, float y) {
     values[pc] = __builtin_elementwise_sqrt(values[ops[pc].unary.a0]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_square(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_square(struct op ops[], int pc, float8 x, float y) {
     float8 arg = values[ops[pc].unary.a0];
     values[pc] = arg * arg;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_neg(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_neg(struct op ops[], int pc, float8 x, float y) {
     values[pc] = -values[ops[pc].unary.a0];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_add(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_add(struct op ops[], int pc, float8 x, float y) {
     values[pc] = values[ops[pc].binary.a0] + values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_sub(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_sub(struct op ops[], int pc, float8 x, float y) {
     values[pc] = values[ops[pc].binary.a0] - values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_mul(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_mul(struct op ops[], int pc, float8 x, float y) {
     values[pc] = values[ops[pc].binary.a0] * values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_min(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_min(struct op ops[], int pc, float8 x, float y) {
     values[pc] = __builtin_elementwise_min(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_max(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_max(struct op ops[], int pc, float8 x, float y) {
     values[pc] = __builtin_elementwise_min(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_done(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL execute_done(struct op ops[], int pc, float8 x, float y) {
     return values[ops[pc].unary.a0];
 }
 
-float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float8 y) {
+float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float y) {
     //if (pc) {
     //    float8 res;
     //    if (ops[pc - 1].should_return_if_neg && (res = values[pc - 1]) <= 0.0) {
@@ -820,16 +820,13 @@ void render_naive_fragment(struct op ops[], int height, uint8_t* pixels, float m
     //printf("start naive %f %f %f %f dx: %f (%i %i %i %i)\n", minx, maxx, miny, maxy, dx, startx, stopx, starty, stopy);
     for (int row_index = starty; row_index < stopy; row_index++) {
         float y = miny + (maxy - miny) * row_index / (float)(height - 1);
-        float8 vy = (float8)(y);
         float x = minx + dx * startx;
         float8 vx = (float8)(x) + (float8){0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0} * dx;
-        float8 vres = dispatch(ops, 0, vx, vy);
+        float8 vres = dispatch(ops, 0, vx, y);
         int index = row_index * width + startx;
-        char8 results = (char8)((vres > 0.0) * 255);
         for (int i = 0; i < 8; i++) {
-            //float res = dispatch(ops, 0, x, y);
             //printf("naive %i %f %f %f\n", index, x, y, res);
-            pixels[index] = results[i];
+            pixels[index] = (vres[i] > 0.0) ? 0 : 255;
             index++;
         }
     }
@@ -866,7 +863,7 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     if (stopx - startx <= 8 || stopy - starty <= 8) {
         // call naive evaluation
         render_naive_fragment(newprogram, height, pixels, minx, maxx, miny, maxy, startx, stopx, starty, stopy);
-        free(newprogram);
+        destroy_ops(newprogram);
         return;
     }
     int midx = (startx + stopx) / 2;
@@ -875,7 +872,7 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     render_image_octree_rec_optimize(newprogram, height, pixels, startx, midx, midy, stopy);
     render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, starty, midy);
     render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, midy, stopy);
-    free(newprogram);
+    destroy_ops(newprogram);
 }
 
 // parsing
