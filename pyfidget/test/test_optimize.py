@@ -398,6 +398,28 @@ _3 min return_if_neg _0 _1
 _4 min return_if_neg _3 _2\
 """
 
+def test_min_backwards_recursive():
+    program = """
+_0 var-y
+_1 const 649.509803922
+_2 var-x
+_3 add _2 _0
+_4 add _0 _2
+_5 max _4 _2
+_6 min _1 _5
+_7 min _3 _6
+"""
+    expected = """
+_0 var-y
+_1 var-x
+_2 add _1 _0
+_3 add _0 _1
+_4 max _3 _1
+_5 min _2 _4
+"""
+    check_optimize(program, expected)
+
+
 @pytest.mark.xfail
 def test_min_max_interleave_backwards():
     program = """
