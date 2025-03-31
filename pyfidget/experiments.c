@@ -49,88 +49,92 @@ struct op {
 #define REGCALL __attribute__((regcall))
 //#define REGCALL 
 
-float REGCALL dispatch(struct op ops[], int pc, float x, float y);
+typedef float float8 __attribute__((ext_vector_type(8)));
+typedef int int8 __attribute__((ext_vector_type(8)));
+typedef char char8 __attribute__((ext_vector_type(8)));
+
+float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float8 y);
 
 
-float values[65536];
+float8 values[65536];
 
-float REGCALL execute_varx(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_varx(struct op ops[], int pc, float8 x, float8 y) {
     values[pc] = x;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_vary(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_vary(struct op ops[], int pc, float8 x, float8 y) {
     values[pc] = y;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_varz(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_varz(struct op ops[], int pc, float8 x, float8 y) {
     values[pc] = 0;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_const(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_const(struct op ops[], int pc, float8 x, float8 y) {
     values[pc] = ops[pc].constant;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_abs(struct op ops[], int pc, float x, float y) {
-    values[pc] = fabsf(values[ops[pc].unary.a0]);
+float8 REGCALL execute_abs(struct op ops[], int pc, float8 x, float8 y) {
+    values[pc] = __builtin_elementwise_abs(values[ops[pc].unary.a0]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_sqrt(struct op ops[], int pc, float x, float y) {
-    values[pc] = sqrtf(values[ops[pc].unary.a0]);
+float8 REGCALL execute_sqrt(struct op ops[], int pc, float8 x, float8 y) {
+    values[pc] = __builtin_elementwise_sqrt(values[ops[pc].unary.a0]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_square(struct op ops[], int pc, float x, float y) {
-    float arg = values[ops[pc].unary.a0];
+float8 REGCALL execute_square(struct op ops[], int pc, float8 x, float8 y) {
+    float8 arg = values[ops[pc].unary.a0];
     values[pc] = arg * arg;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_neg(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_neg(struct op ops[], int pc, float8 x, float8 y) {
     values[pc] = -values[ops[pc].unary.a0];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_add(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_add(struct op ops[], int pc, float8 x, float8 y) {
     values[pc] = values[ops[pc].binary.a0] + values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_sub(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_sub(struct op ops[], int pc, float8 x, float8 y) {
     values[pc] = values[ops[pc].binary.a0] - values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_mul(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_mul(struct op ops[], int pc, float8 x, float8 y) {
     values[pc] = values[ops[pc].binary.a0] * values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_min(struct op ops[], int pc, float x, float y) {
-    values[pc] = fminf(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
+float8 REGCALL execute_min(struct op ops[], int pc, float8 x, float8 y) {
+    values[pc] = __builtin_elementwise_min(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_max(struct op ops[], int pc, float x, float y) {
-    values[pc] = fmaxf(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
+float8 REGCALL execute_max(struct op ops[], int pc, float8 x, float8 y) {
+    values[pc] = __builtin_elementwise_min(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float REGCALL execute_done(struct op ops[], int pc, float x, float y) {
+float8 REGCALL execute_done(struct op ops[], int pc, float8 x, float8 y) {
     return values[ops[pc].unary.a0];
 }
 
-float REGCALL dispatch(struct op ops[], int pc, float x, float y) {
-    if (pc) {
-        float res;
-        if (ops[pc - 1].should_return_if_neg && (res = values[pc - 1]) <= 0.0) {
-            return res;
-        }
-    }
+float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float8 y) {
+    //if (pc) {
+    //    float8 res;
+    //    if (ops[pc - 1].should_return_if_neg && (res = values[pc - 1]) <= 0.0) {
+    //        return res;
+    //    }
+    //}
     enum func f = ops[pc].f;
     switch (f) {
         case func_varx:
@@ -166,18 +170,19 @@ float REGCALL dispatch(struct op ops[], int pc, float x, float y) {
     }
 }
 
-void render_naive(struct op ops[], int height, uint8_t* pixels) {
-    float minx = -1, maxx = 1, miny = -1, maxy = 1;
-    for (int i = 0; i < height * height; i++) {
-        int column_index = i % height;
-        int row_index = i / height;
-        float x = minx + (maxx - minx) / (float)(height - 1) * column_index;
-        float y = miny + (maxy - miny) / (float)(height - 1) * row_index;
-        // call dispatch
-        float result = dispatch(ops, 0, x, y);
-        pixels[i] = (result > 0.0) ? 0 : 255;
-    }
-}
+
+//void render_naive(struct op ops[], int height, uint8_t* pixels) {
+//    float minx = -1, maxx = 1, miny = -1, maxy = 1;
+//    for (int i = 0; i < height * height; i++) {
+//        int column_index = i % height;
+//        int row_index = i / height;
+//        float x = minx + (maxx - minx) / (float)(height - 1) * column_index;
+//        float y = miny + (maxy - miny) / (float)(height - 1) * row_index;
+//        // call dispatch
+//        float result = dispatch(ops, 0, x, y);
+//        pixels[i] = (result > 0.0) ? 0 : 255;
+//    }
+//}
 
 void* free_ops = NULL;
 
@@ -815,14 +820,17 @@ void render_naive_fragment(struct op ops[], int height, uint8_t* pixels, float m
     //printf("start naive %f %f %f %f dx: %f (%i %i %i %i)\n", minx, maxx, miny, maxy, dx, startx, stopx, starty, stopy);
     for (int row_index = starty; row_index < stopy; row_index++) {
         float y = miny + (maxy - miny) * row_index / (float)(height - 1);
+        float8 vy = (float8)(y);
         float x = minx + dx * startx;
+        float8 vx = (float8)(x) + (float8){0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0} * dx;
+        float8 vres = dispatch(ops, 0, vx, vy);
         int index = row_index * width + startx;
-        for (int column_index = startx; column_index < stopx; column_index++) {
-            float res = dispatch(ops, 0, x, y);
+        char8 results = (char8)((vres > 0.0) * 255);
+        for (int i = 0; i < 8; i++) {
+            //float res = dispatch(ops, 0, x, y);
             //printf("naive %i %f %f %f\n", index, x, y, res);
-            pixels[index] = (res > 0.0) ? 0 : 255;
+            pixels[index] = results[i];
             index++;
-            x += dx;
         }
     }
 }
