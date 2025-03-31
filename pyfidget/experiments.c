@@ -872,12 +872,30 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
 
 // parsing
 
-uint16_t parse_arg(char* arg, char* names[], uint16_t count) {
+unsigned long
+hash(unsigned char *str, int length)
+{
+    unsigned long hash = str[0];
+
+    for (int i = 0; i < length; i++) {
+        unsigned char c = str[i];
+        hash = (1000003 * hash) ^ c;
+    }
+    hash ^= length;
+    return hash;
+}
+
+uint16_t parse_arg(char* arg, char* names[], uint16_t* hashmap, uint16_t count) {
     // parse the argument
     // it's always a name that must exist in the names list.
-    // go through that list, compare the strings, return the index of said string
     int len = strlen(arg);
     if (arg[len - 1] == '\n') len--;
+    // first try the hashmap. we don't deal with collisions
+    uint16_t i = hashmap[hash((unsigned char*)arg, len) & 0xffff];
+    if (strncmp(arg, names[i], len) == 0) {
+        return i;
+    }
+    // go through that list, compare the strings, return the index of said string
     for (uint16_t i = 0; i < count; i++) {
         if (strncmp(arg, names[i], len) == 0) {
             return i;
@@ -920,7 +938,7 @@ enum func parse_operator_name(char* name) {
     exit(1);
 }
 
-struct op parse_op(char* line, char* names[], uint16_t count) {
+struct op parse_op(char* line, char* names[], uint16_t* hashmap, uint16_t count) {
     // examples:
     // _0 const 2.95
     // _1 var-x
@@ -934,9 +952,11 @@ struct op parse_op(char* line, char* names[], uint16_t count) {
     struct op op;
     char* tokname = strtok(line, " ");
     // copy tokname into a newly malloced string name
-    char* name = malloc(strlen(tokname) + 1);
+    int length = strlen(tokname);
+    char* name = malloc(length + 1);
     strcpy(name, tokname);
     names[count] = name;
+    hashmap[hash((unsigned char*)name, length) & 0xffff] = count;
     if (name == NULL) {
         fprintf(stderr, "Error: empty line\n");
         exit(1);
@@ -966,7 +986,7 @@ struct op parse_op(char* line, char* names[], uint16_t count) {
         case func_square:
         case func_neg: {
             char* arg0 = strtok(NULL, " ");
-            op.unary.a0 = parse_arg(arg0, names, count);
+            op.unary.a0 = parse_arg(arg0, names, hashmap, count);
             break;}
         case func_add:
         case func_sub:
@@ -975,8 +995,8 @@ struct op parse_op(char* line, char* names[], uint16_t count) {
         case func_max:{
             char* arg0 = strtok(NULL, " ");
             char* arg1 = strtok(NULL, " ");
-            op.binary.a0 = parse_arg(arg0, names, count);
-            op.binary.a1 = parse_arg(arg1, names, count);
+            op.binary.a0 = parse_arg(arg0, names, hashmap, count);
+            op.binary.a1 = parse_arg(arg1, names, hashmap, count);
             break;}
         case func_done:
             fprintf(stderr, "should be unreachable");
@@ -990,6 +1010,8 @@ struct op* parse(FILE *f) {
     // this is a stub, you need to implement the parsing logic
     struct op* ops = create_ops();
     char* names[65536];
+    uint16_t hashmap[65536];
+    memset(hashmap, 0, sizeof(uint16_t) * 65536);
     size_t count = 0;
     char line[1024];
     while (fgets(line, sizeof(line), f)) {
@@ -997,7 +1019,7 @@ struct op* parse(FILE *f) {
         if (line[0] == '#') {
             continue;
         }
-        struct op op = parse_op(line, names, count);
+        struct op op = parse_op(line, names, hashmap, count);
         ops[count++] = op;
     }
     // terminate with a done op
