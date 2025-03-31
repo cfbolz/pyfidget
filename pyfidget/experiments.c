@@ -863,7 +863,7 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     if (stopx - startx <= 8 || stopy - starty <= 8) {
         // call naive evaluation
         render_naive_fragment(newprogram, height, pixels, minx, maxx, miny, maxy, startx, stopx, starty, stopy);
-        destroy_ops(newprogram);
+        destroy_ops((void*)newprogram);
         return;
     }
     int midx = (startx + stopx) / 2;
@@ -872,7 +872,7 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     render_image_octree_rec_optimize(newprogram, height, pixels, startx, midx, midy, stopy);
     render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, starty, midy);
     render_image_octree_rec_optimize(newprogram, height, pixels, midx, stopx, midy, stopy);
-    destroy_ops(newprogram);
+    destroy_ops((void*)newprogram);
 }
 
 // parsing
