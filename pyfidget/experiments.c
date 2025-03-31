@@ -709,7 +709,7 @@ uint16_t opt_work_backwards(struct optimizer* opt, uint16_t lastop) {
             if (narg != op.binary.a1) {
                 op.binary.a1 = narg;
             }
-            opt_convert_to_shortcut_min(opt, lastop);
+            //opt_convert_to_shortcut_min(opt, lastop);
             return lastop;
         }
         return lastop;
@@ -729,11 +729,11 @@ struct optresult optimize(struct op* ops, float minx, float maxx, float miny, fl
         struct op op = ops[i];
         uint16_t newopindex = opt_op(op, opt);
         opt->opreplacements[i] = newopindex;
-        if (op.should_return_if_neg) {
-            if (opt->intervals[newopindex].max <= 0.0) {
-                break;
-            }
-        }
+        //if (op.should_return_if_neg) {
+        //    if (opt->intervals[newopindex].max <= 0.0) {
+        //        break;
+        //    }
+        //}
         if (op.f == func_done) {
             break;
         }
