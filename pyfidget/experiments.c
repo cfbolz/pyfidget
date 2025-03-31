@@ -695,6 +695,15 @@ uint16_t opt_work_backwards(struct optimizer* opt, uint16_t lastop) {
                 lastop = op.binary.a0;
                 continue;
             }
+            uint16_t narg;
+            narg = opt_work_backwards(opt, op.binary.a0);
+            if (narg != op.binary.a0) {
+                op.binary.a0 = narg;
+            }
+            narg = opt_work_backwards(opt, op.binary.a1);
+            if (narg != op.binary.a1) {
+                op.binary.a1 = narg;
+            }
             opt_convert_to_shortcut_min(opt, lastop);
             return lastop;
         }
