@@ -592,6 +592,12 @@ def work_backwards(resultops, result, minvalues, maxvalues, for_direct=False):
                 if minvalues[arg1] > val:
                     op = arg0
                     continue
+                narg0 = check_gt(resultops, arg0, minvalues, maxvalues, check_gt, val)
+                if narg0 != arg0:
+                    resultops.arguments[op * 2 + 0] = narg0
+                narg1 = check_gt(resultops, arg1, minvalues, maxvalues, check_gt, val)
+                if narg1 != arg1:
+                    resultops.arguments[op * 2 + 1] = narg1
             break
         return op
     otherop = check_gt(resultops, result, minvalues, maxvalues, check_gt)
