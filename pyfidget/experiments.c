@@ -1058,10 +1058,11 @@ int main(int argc, char *argv[]) {
 
     // time the execution or render_naive
     clock_t start = clock();
-    render_image_octree_rec_optimize(ops, height, pixels, 0, height, 0, height);
+    for (int i = 0; i < 100; i++)
+        render_image_octree_rec_optimize(ops, height, pixels, 0, height, 0, height);
     clock_t end = clock();
-    double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("Elapsed time octree evaluation: %f seconds\n", elapsed);
+    double elapsed = (double)(end - start) / CLOCKS_PER_SEC / 100 * 1000;
+    printf("Elapsed time octree evaluation: %f ms\n", elapsed);
     //putchar('\n');
     //putchar('-');
     // open the output file
