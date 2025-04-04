@@ -209,6 +209,10 @@ struct interval {
     float max;
 };
 
+bool isnan_interval(struct interval a) {
+    return isnan(a.min) || isnan(a.max);
+}
+
 struct optimizer {
     struct op* ops;
     struct op* resultops;
@@ -402,6 +406,10 @@ uint16_t opt_min(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t ar
     struct interval resinterval;
     resinterval.min = fminf(a0interval.min, a1interval.min);
     resinterval.max = fminf(a0interval.max, a1interval.max);
+    if (isnan_interval(a0interval) || isnan_interval(a1interval)) {
+        resinterval.min = NAN;
+        resinterval.max = NAN;
+    }
     return opt_default2(func_min, opt, resinterval, arg0, arg1);
 }
 
@@ -432,6 +440,10 @@ uint16_t opt_max(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t ar
     struct interval resinterval;
     resinterval.min = fmaxf(a0interval.min, a1interval.min);
     resinterval.max = fmaxf(a0interval.max, a1interval.max);
+    if (isnan_interval(a0interval) || isnan_interval(a1interval)) {
+        resinterval.min = NAN;
+        resinterval.max = NAN;
+    }
     return opt_default2(func_max, opt, resinterval, arg0, arg1);
 }
 
