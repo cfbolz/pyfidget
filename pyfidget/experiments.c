@@ -6,6 +6,17 @@
 #include <time.h>
 #include <stdbool.h>
 
+#ifdef PYFIDGETFUZZING
+    typedef double FLOAT;
+    #define FABS fabs
+    #define SQRT sqrt
+#else
+    typedef float FLOAT;
+    #define FABS fabsf
+    #define SQRT sqrtf
+#endif
+
+
 enum func {
     func_varx,
     func_vary,
@@ -29,7 +40,7 @@ enum func {
 struct op {
     union {
         // constant
-        float constant;
+        FLOAT constant;
         // binary
         struct {
             uint16_t a0;
@@ -53,82 +64,82 @@ typedef float float8 __attribute__((ext_vector_type(8)));
 typedef int int8 __attribute__((ext_vector_type(8)));
 typedef char char8 __attribute__((ext_vector_type(8)));
 
-float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float y);
+float8 REGCALL dispatch(struct op ops[], int pc, float8 x, FLOAT y);
 
 
 float8 values[65536];
 
-float8 REGCALL execute_varx(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_varx(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = x;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_vary(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_vary(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = (float8)y;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_varz(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_varz(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = 0;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_const(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_const(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = ops[pc].constant;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_abs(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_abs(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = __builtin_elementwise_abs(values[ops[pc].unary.a0]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_sqrt(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_sqrt(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = __builtin_elementwise_sqrt(values[ops[pc].unary.a0]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_square(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_square(struct op ops[], int pc, float8 x, FLOAT y) {
     float8 arg = values[ops[pc].unary.a0];
     values[pc] = arg * arg;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_neg(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_neg(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = -values[ops[pc].unary.a0];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_add(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_add(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = values[ops[pc].binary.a0] + values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_sub(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_sub(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = values[ops[pc].binary.a0] - values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_mul(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_mul(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = values[ops[pc].binary.a0] * values[ops[pc].binary.a1];
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_min(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_min(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = __builtin_elementwise_min(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_max(struct op ops[], int pc, float8 x, float y) {
-    values[pc] = __builtin_elementwise_min(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
+float8 REGCALL execute_max(struct op ops[], int pc, float8 x, FLOAT y) {
+    values[pc] = __builtin_elementwise_max(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
-float8 REGCALL execute_done(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL execute_done(struct op ops[], int pc, float8 x, FLOAT y) {
     return values[ops[pc].unary.a0];
 }
 
-float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float y) {
+float8 REGCALL dispatch(struct op ops[], int pc, float8 x, FLOAT y) {
     //if (pc) {
     //    float8 res;
     //    if (ops[pc - 1].should_return_if_neg && (res = values[pc - 1]) <= 0.0) {
@@ -172,14 +183,14 @@ float8 REGCALL dispatch(struct op ops[], int pc, float8 x, float y) {
 
 
 //void render_naive(struct op ops[], int height, uint8_t* pixels) {
-//    float minx = -1, maxx = 1, miny = -1, maxy = 1;
+//    FLOAT minx = -1, maxx = 1, miny = -1, maxy = 1;
 //    for (int i = 0; i < height * height; i++) {
 //        int column_index = i % height;
 //        int row_index = i / height;
-//        float x = minx + (maxx - minx) / (float)(height - 1) * column_index;
-//        float y = miny + (maxy - miny) / (float)(height - 1) * row_index;
+//        FLOAT x = minx + (maxx - minx) / (FLOAT)(height - 1) * column_index;
+//        FLOAT y = miny + (maxy - miny) / (FLOAT)(height - 1) * row_index;
 //        // call dispatch
-//        float result = dispatch(ops, 0, x, y);
+//        FLOAT result = dispatch(ops, 0, x, y);
 //        pixels[i] = (result > 0.0) ? 0 : 255;
 //    }
 //}
@@ -205,8 +216,8 @@ void destroy_ops(void** ops) {
 // optimizing
 
 struct interval {
-    float min;
-    float max;
+    FLOAT min;
+    FLOAT max;
 };
 
 bool isnan_interval(struct interval a) {
@@ -219,10 +230,10 @@ struct optimizer {
     uint16_t count;
     struct interval* intervals;
     uint16_t* opreplacements;
-    float minx;
-    float maxx;
-    float miny;
-    float maxy;
+    FLOAT minx;
+    FLOAT maxx;
+    FLOAT miny;
+    FLOAT maxy;
     struct optimizer* next_free;
 };
 
@@ -284,7 +295,7 @@ uint16_t opt_default2(enum func f, struct optimizer* opt, struct interval interv
     return opt_default(newop, opt, interval);
 }
 
-uint16_t opt_newconst(struct optimizer* opt, float constant) {
+uint16_t opt_newconst(struct optimizer* opt, FLOAT constant) {
     struct op newop;
     newop.f = func_const;
     newop.should_return_if_neg = false;
@@ -538,7 +549,7 @@ uint16_t opt_op(struct op op, struct optimizer* opt) {
             a0 = opt->opreplacements[op.unary.a0];
             a0interval = opt->intervals[a0];
             return opt_sqrt(op, opt, a0, a0interval);
-        case func_square: 
+        case func_square:
             a0 = opt->opreplacements[op.unary.a0];
             a0interval = opt->intervals[a0];
             return opt_square(op, opt, a0, a0interval);
@@ -672,8 +683,8 @@ void opt_dead_code_elimination(struct optimizer* opt, int last_op) {
 void print_ops(struct op ops[]);
 
 struct optresult {
-    float min;
-    float max;
+    FLOAT min;
+    FLOAT max;
     struct op* ops;
 };
 
@@ -728,7 +739,7 @@ uint16_t opt_work_backwards(struct optimizer* opt, uint16_t lastop) {
     }
 }
 
-struct optresult optimize(struct op* ops, float minx, float maxx, float miny, float maxy) {
+struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FLOAT maxy) {
     // create the optimizer
     struct optimizer* opt = create_optimizer(ops);
     opt->minx = minx;
@@ -826,18 +837,22 @@ void print_ops(struct op ops[]) {
     //printf("_%x done _%x\n", i, ops[i].unary.a0);
 }
 
-void render_naive_fragment(struct op ops[], int height, uint8_t* pixels, float minx, float maxx, float miny, float maxy, int startx, int stopx, int starty, int stopy) {
+void render_naive_fragment(struct op ops[], int height, uint8_t* pixels, FLOAT minx, FLOAT maxx, FLOAT miny, FLOAT maxy, int startx, int stopx, int starty, int stopy) {
     int width = height; // Assuming square image
-    float dx = (maxx - minx) / (float)(width - 1);
-    //printf("start naive %f %f %f %f dx: %f (%i %i %i %i)\n", minx, maxx, miny, maxy, dx, startx, stopx, starty, stopy);
+    FLOAT dx = (maxx - minx) / (FLOAT)(width - 1);
+#ifdef PYFIDGETFUZZING
+    printf("start naive %f %f %f %f dx: %f (%i %i %i %i)\n", minx, maxx, miny, maxy, dx, startx, stopx, starty, stopy);
+#endif
     for (int row_index = starty; row_index < stopy; row_index++) {
-        float y = miny + (maxy - miny) * row_index / (float)(height - 1);
-        float x = minx + dx * startx;
+        FLOAT y = miny + (maxy - miny) * row_index / (FLOAT)(height - 1);
+        FLOAT x = minx + dx * startx;
         float8 vx = (float8)(x) + (float8){0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0} * dx;
         float8 vres = dispatch(ops, 0, vx, y);
         int index = row_index * width + startx;
         for (int i = 0; i < 8; i++) {
-            //printf("naive %i %f %f %f\n", index, x, y, res);
+#ifdef PYFIDGETFUZZING
+            printf("naive %i %f %f %f\n", index, vx[i], y, vres[i]);
+#endif
             pixels[index] = (vres[i] > 0.0) ? 0 : 255;
             index++;
         }
@@ -848,11 +863,11 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
     // proof of concept
     // use intervals to check for uniform color
     //print("==" * level, startx, stopx, starty, stopy)
-    float minx = -1, maxx = 1, miny = -1, maxy = 1;
-    float a = minx + (maxx - minx) * (float)startx / (float)(height - 1);
-    float b = minx + (maxx - minx) * (float)(stopx - 1) / (float)(height - 1);
-    float c = miny + (maxy - miny) * (float)starty / (float)(height - 1);
-    float d = miny + (maxy - miny) * (float)(stopy - 1) / (float)(height - 1);
+    FLOAT minx = -1, maxx = 1, miny = -1, maxy = 1;
+    FLOAT a = minx + (maxx - minx) * (FLOAT)startx / (FLOAT)(height - 1);
+    FLOAT b = minx + (maxx - minx) * (FLOAT)(stopx - 1) / (FLOAT)(height - 1);
+    FLOAT c = miny + (maxy - miny) * (FLOAT)starty / (FLOAT)(height - 1);
+    FLOAT d = miny + (maxy - miny) * (FLOAT)(stopy - 1) / (FLOAT)(height - 1);
     //printf("%f-%f, %f-%f\n", a, b, c, d);
     struct optresult res = optimize(ops, a, b, c, d);
     if (res.min > 0.0) {
@@ -1068,13 +1083,17 @@ int main(int argc, char *argv[]) {
     uint8_t* pixels = calloc(sizeof(uint8_t), height * height);
     //putchar('-');
 
-    // time the execution or render_naive
+#ifndef PYFIDGETFUZZING
+    // time the execution
     clock_t start = clock();
     for (int i = 0; i < 100; i++)
+#endif
         render_image_octree_rec_optimize(ops, height, pixels, 0, height, 0, height);
+#ifndef PYFIDGETFUZZING
     clock_t end = clock();
     double elapsed = (double)(end - start) / CLOCKS_PER_SEC / 100 * 1000;
     printf("Elapsed time octree evaluation: %f ms\n", elapsed);
+#endif
     //putchar('\n');
     //putchar('-');
     // open the output file

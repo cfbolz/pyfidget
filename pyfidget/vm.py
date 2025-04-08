@@ -138,6 +138,10 @@ class ProgramBuilder(object):
     def __iter__(self):
         return iter(range(self.num_operations()))
 
+    def view(self):
+        from pyfidget.optimize import graph
+        graph(self)
+
 
 class Frame(object):
     @jit.unroll_safe

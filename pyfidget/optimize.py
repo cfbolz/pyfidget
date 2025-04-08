@@ -46,8 +46,10 @@ def split_blocks(res, d, allops):
     return blocks
 
 
-def graph(res, d):
+def graph(res, d=None):
     from dotviewer import graphclient
+    if d is None:
+        d = collect_uses(res)
     out = ['digraph G {']
     allops = set(list(res))
     blocks = split_blocks(res, d, allops)
