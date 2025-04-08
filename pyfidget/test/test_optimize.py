@@ -362,8 +362,8 @@ out min a b
     program = parse(program)
     convert_to_shortcut(program, 2)
     assert program.pretty_format() == """\
-_0 var-x return_if_neg _0 _0
-_1 var-y return_if_neg _0 _0
+_0 var-x return_if_neg
+_1 var-y return_if_neg
 _2 min return_if_neg _0 _1\
 """
 
@@ -375,8 +375,8 @@ out max a b
     program = parse(program)
     convert_to_shortcut(program, 2)
     assert program.pretty_format() == """\
-_0 var-x return_if_pos _0 _0
-_1 var-y return_if_pos _0 _0
+_0 var-x return_if_pos
+_1 var-y return_if_pos
 _2 max return_if_pos _0 _1\
 """
 
@@ -391,9 +391,9 @@ out2 min out c
     program = parse(program)
     convert_to_shortcut(program, 4)
     assert program.pretty_format() == """\
-_0 var-x return_if_neg _0 _0
-_1 var-y return_if_neg _0 _0
-_2 var-z return_if_neg _0 _0
+_0 var-x return_if_neg
+_1 var-y return_if_neg
+_2 var-z return_if_neg
 _3 min return_if_neg _0 _1
 _4 min return_if_neg _3 _2\
 """

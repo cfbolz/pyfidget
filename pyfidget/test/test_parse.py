@@ -10,16 +10,16 @@ def test_parse():
     operations = parse(code)
     res = operations.pretty_format()
     assert res == """\
-_0 var-x _0 _0
-_1 var-y _0 _0
-_2 var-z _0 _0
-_3 square _0 _0
-_4 square _3 _0
-_5 square _1 _0
-_6 square _5 _0
-_7 square _2 _0
-_8 square _7 _0
-_9 const 5.0
+_0 var-x
+_1 var-y
+_2 var-z
+_3 square _0
+_4 square _3
+_5 square _1
+_6 square _5
+_7 square _2
+_8 square _7
+_9 const 5.000000
 _a mul _3 _9
 _b mul _5 _9
 _c mul _7 _9
@@ -28,5 +28,5 @@ _e add _d _6
 _f sub _e _b
 _10 add _f _8
 _11 sub _10 _c
-_12 const 10.0
+_12 const 10.000000
 _13 add _11 _12"""
