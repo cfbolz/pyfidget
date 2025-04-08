@@ -60,7 +60,7 @@ struct op {
 #define REGCALL __attribute__((regcall))
 //#define REGCALL 
 
-typedef float float8 __attribute__((ext_vector_type(8)));
+typedef FLOAT float8 __attribute__((ext_vector_type(8)));
 typedef int int8 __attribute__((ext_vector_type(8)));
 typedef char char8 __attribute__((ext_vector_type(8)));
 
