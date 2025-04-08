@@ -330,11 +330,11 @@ C. While RPython is great for prototyping, it can be challenging to control
 low-level aspects of the code. The rewrite in C allowed me to experiment with
 several techniques I had been curious about:
 
-- **`musttail` optimization** for the interpreter.
-- **SIMD (Single Instruction, Multiple Data)**: Using Clang's
-  `ext_vector_type`, I process eight pixels at once using AVX (or some other
+- [`musttail` optimization](https://blog.reverberate.org/2021/04/21/musttail-efficient-interpreters.html) for the interpreter.
+- SIMD (Single Instruction, Multiple Data): Using Clang's
+  [`ext_vector_type`](https://clang.llvm.org/docs/LanguageExtensions.html#vectors-and-extended-vectors), I process eight pixels at once using AVX (or some other
   SIMD magic that I don't properly understand).
-- **Efficient struct packing**: I packed the operations struct into just 8
+- Efficient struct packing: I packed the operations struct into just 8
   bytes by limiting the maximum number of operations to 65,536, with the idea
   of making the optimizer faster.
 
