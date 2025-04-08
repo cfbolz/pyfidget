@@ -53,9 +53,7 @@ struct op {
             opnum a0;
         } unary;
     };
-    //opnum destination;
-    enum func f : 6;
-    bool should_return_if_neg : 1;
+    enum func f;
 };
 
 #define MUSTTAIL __attribute__((musttail))
@@ -142,12 +140,6 @@ float8 REGCALL execute_done(struct op ops[], int pc, float8 x, FLOAT y) {
 }
 
 float8 REGCALL dispatch(struct op ops[], int pc, float8 x, FLOAT y) {
-    //if (pc) {
-    //    float8 res;
-    //    if (ops[pc - 1].should_return_if_neg && (res = values[pc - 1]) <= 0.0) {
-    //        return res;
-    //    }
-    //}
     enum func f = ops[pc].f;
     switch (f) {
         case func_varx:
@@ -276,14 +268,12 @@ opnum opt_default(struct op newop, struct optimizer* opt, struct interval interv
 opnum opt_default0(enum func f, struct optimizer* opt, struct interval interval) {
     struct op newop;
     newop.f = f;
-    newop.should_return_if_neg = false;
     return opt_default(newop, opt, interval);
 }
 
 opnum opt_default1(enum func f, struct optimizer* opt, struct interval interval, opnum arg0) {
     struct op newop;
     newop.f = f;
-    newop.should_return_if_neg = false;
     newop.unary.a0 = arg0;
     return opt_default(newop, opt, interval);
 }
@@ -291,7 +281,6 @@ opnum opt_default1(enum func f, struct optimizer* opt, struct interval interval,
 opnum opt_default2(enum func f, struct optimizer* opt, struct interval interval, opnum arg0, opnum arg1) {
     struct op newop;
     newop.f = f;
-    newop.should_return_if_neg = false;
     newop.binary.a0 = arg0;
     newop.binary.a1 = arg1;
     return opt_default(newop, opt, interval);
@@ -300,7 +289,6 @@ opnum opt_default2(enum func f, struct optimizer* opt, struct interval interval,
 opnum opt_newconst(struct optimizer* opt, FLOAT constant) {
     struct op newop;
     newop.f = func_const;
-    newop.should_return_if_neg = false;
     newop.constant = constant;
     opt->resultops[opt->count] = newop;
     struct interval newinterval;
@@ -697,7 +685,6 @@ int opt_convert_to_shortcut_min(struct optimizer* opt, opnum lastop) {
         if (op.f == func_const) {
             break;
         }
-        op.should_return_if_neg = true;
         if (op.f == func_min) {
             converted += 1;
             lastop = op.binary.a0;
@@ -754,11 +741,6 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
         struct op op = ops[i];
         opnum newopindex = opt_op(op, opt);
         opt->opreplacements[i] = newopindex;
-        //if (op.should_return_if_neg) {
-        //    if (opt->intervals[newopindex].max <= 0.0) {
-        //        break;
-        //    }
-        //}
         if (op.f == func_done) {
             break;
         }
@@ -776,7 +758,6 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
     if (last_op != opt->opreplacements[i]) {
         struct op done;
         done.f = func_done;
-        done.should_return_if_neg = false;
         done.unary.a0 = last_op++;
         opt->resultops[last_op] = done;
     }
@@ -998,7 +979,6 @@ struct op parse_op(char* line, char* names[], opnum* hashmap, opnum count) {
     // parse the operator
     char* operator = strtok(NULL, " ");
     op.f = parse_operator_name(operator);
-    op.should_return_if_neg = false;
     if (op.f == -1) {
         fprintf(stderr, "Error: unknown operator %s\n", operator);
         exit(1);
@@ -1059,7 +1039,6 @@ struct op* parse(FILE *f) {
     // terminate with a done op
     struct op done;
     done.f = func_done;
-    done.should_return_if_neg = false;
     //done.destination = count;
     done.unary.a0 = count - 1;
     ops[count++] = done;
