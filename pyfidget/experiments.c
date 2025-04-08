@@ -852,7 +852,7 @@ void render_image_octree_rec_optimize(struct op ops[], int height, uint8_t* pixe
         for (int row_index = starty; row_index < stopy; row_index++) {
             int index = row_index * width + startx;
             for (int column_index = startx; column_index < stopx; column_index++) {
-                pixels[index] = 100;
+                pixels[index] = 255;
                 index++;
             }
         }
