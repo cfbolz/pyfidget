@@ -6,6 +6,8 @@
 #include <time.h>
 #include <stdbool.h>
 
+typedef int16_t opnum;
+
 #ifdef PYFIDGETFUZZING
     typedef double FLOAT;
     #define FABS fabs
@@ -43,15 +45,15 @@ struct op {
         FLOAT constant;
         // binary
         struct {
-            uint16_t a0;
-            uint16_t a1;
+            opnum a0;
+            opnum a1;
         } binary;
         // unary
         struct {
-            uint16_t a0;
+            opnum a0;
         } unary;
     };
-    //uint16_t destination;
+    //opnum destination;
     enum func f : 6;
     bool should_return_if_neg : 1;
 };
@@ -227,9 +229,9 @@ bool isnan_interval(struct interval a) {
 struct optimizer {
     struct op* ops;
     struct op* resultops;
-    uint16_t count;
+    opnum count;
     struct interval* intervals;
-    uint16_t* opreplacements;
+    opnum* opreplacements;
     FLOAT minx;
     FLOAT maxx;
     FLOAT miny;
@@ -254,7 +256,7 @@ struct optimizer* create_optimizer(struct op* ops) {
     opt->resultops = create_ops();
     opt->count = 0;
     opt->intervals = malloc(sizeof(struct interval) * 65536);
-    opt->opreplacements = calloc(sizeof(uint16_t), 65536);
+    opt->opreplacements = calloc(sizeof(opnum), 65536);
     return opt;
 }
 
@@ -265,20 +267,20 @@ void destroy_optimizer(struct optimizer* opt) {
     free_optimizers = opt;
 }
 
-uint16_t opt_default(struct op newop, struct optimizer* opt, struct interval interval) {
+opnum opt_default(struct op newop, struct optimizer* opt, struct interval interval) {
     opt->resultops[opt->count] = newop;
     opt->intervals[opt->count] = interval;
     return opt->count++;
 }
 
-uint16_t opt_default0(enum func f, struct optimizer* opt, struct interval interval) {
+opnum opt_default0(enum func f, struct optimizer* opt, struct interval interval) {
     struct op newop;
     newop.f = f;
     newop.should_return_if_neg = false;
     return opt_default(newop, opt, interval);
 }
 
-uint16_t opt_default1(enum func f, struct optimizer* opt, struct interval interval, uint16_t arg0) {
+opnum opt_default1(enum func f, struct optimizer* opt, struct interval interval, opnum arg0) {
     struct op newop;
     newop.f = f;
     newop.should_return_if_neg = false;
@@ -286,7 +288,7 @@ uint16_t opt_default1(enum func f, struct optimizer* opt, struct interval interv
     return opt_default(newop, opt, interval);
 }
 
-uint16_t opt_default2(enum func f, struct optimizer* opt, struct interval interval, uint16_t arg0, uint16_t arg1) {
+opnum opt_default2(enum func f, struct optimizer* opt, struct interval interval, opnum arg0, opnum arg1) {
     struct op newop;
     newop.f = f;
     newop.should_return_if_neg = false;
@@ -295,7 +297,7 @@ uint16_t opt_default2(enum func f, struct optimizer* opt, struct interval interv
     return opt_default(newop, opt, interval);
 }
 
-uint16_t opt_newconst(struct optimizer* opt, FLOAT constant) {
+opnum opt_newconst(struct optimizer* opt, FLOAT constant) {
     struct op newop;
     newop.f = func_const;
     newop.should_return_if_neg = false;
@@ -308,56 +310,56 @@ uint16_t opt_newconst(struct optimizer* opt, FLOAT constant) {
     return opt->count++;
 }
 
-uint16_t opt_varx(struct op op, struct optimizer* opt) {
+opnum opt_varx(struct op op, struct optimizer* opt) {
     struct interval interval = {.min=opt->minx, .max=opt->maxx};
     return opt_default0(func_varx, opt, interval);
 }
 
-uint16_t opt_vary(struct op op, struct optimizer* opt) {
+opnum opt_vary(struct op op, struct optimizer* opt) {
     struct interval interval = {.min=opt->miny, .max=opt->maxy};
     return opt_default0(func_vary, opt, interval);
 }
 
-uint16_t opt_varz(struct op op, struct optimizer* opt) {
+opnum opt_varz(struct op op, struct optimizer* opt) {
     struct interval interval = {.min=0, .max=0};
     return opt_default0(func_varz, opt, interval);
 }
-uint16_t opt_const(struct op op, struct optimizer* opt) {
+opnum opt_const(struct op op, struct optimizer* opt) {
     return opt_newconst(opt, op.constant);
 }
 
-uint16_t opt_neg(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+opnum opt_neg(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
     struct interval resinterval;
     resinterval.min = -a0interval.max;
     resinterval.max = -a0interval.min;
     // simplify neg of neg
-    struct op arg0op = opt->resultops[arg0];
-    if (arg0op.f == func_neg) {
-        // remove the neg
-        return arg0op.unary.a0;
-    }
+    //struct op arg0op = opt->resultops[arg0];
+    //if (arg0op.f == func_neg) {
+    //    // remove the neg
+    //    return arg0op.unary.a0;
+    //}
     return opt_default1(func_neg, opt, resinterval, arg0);
 }
 
-uint16_t opt_abs(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
-    if (a0interval.min >= 0) {
-        return arg0;
-    }
-    if (a0interval.max <= 0) {
-        return opt_neg(op, opt, arg0, a0interval);
-    }
-    struct op arg0op = opt->resultops[arg0];
-    if (arg0op.f == func_neg) {
-        struct interval arg0arg0interval = opt->intervals[arg0op.unary.a0];
-        return opt_abs(op, opt, arg0op.unary.a0, arg0arg0interval);
-    }
+opnum opt_abs(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
+    //if (a0interval.min >= 0) {
+    //    return arg0;
+    //}
+    //if (a0interval.max <= 0) {
+    //    return opt_neg(op, opt, arg0, a0interval);
+    //}
+    //struct op arg0op = opt->resultops[arg0];
+    //if (arg0op.f == func_neg) {
+    //    struct interval arg0arg0interval = opt->intervals[arg0op.unary.a0];
+    //    return opt_abs(op, opt, arg0op.unary.a0, arg0arg0interval);
+    //}
     struct interval resinterval;
     resinterval.min = 0.0;
     resinterval.max = fmaxf(-a0interval.min, a0interval.max);
     return opt_default1(func_abs, opt, resinterval, arg0);
 }
 
-uint16_t opt_sqrt(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+opnum opt_sqrt(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
     struct interval resinterval;
     if (a0interval.min < 0) {
         resinterval.max = NAN;
@@ -369,7 +371,7 @@ uint16_t opt_sqrt(struct op op, struct optimizer* opt, uint16_t arg0, struct int
     return opt_default1(func_sqrt, opt, resinterval, arg0);
 }
 
-uint16_t opt_square(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+opnum opt_square(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
     struct interval resinterval;
     if (a0interval.min >= 0) {
         resinterval.min = a0interval.min * a0interval.min;
@@ -390,30 +392,30 @@ uint16_t opt_square(struct op op, struct optimizer* opt, uint16_t arg0, struct i
     return opt_default1(func_square, opt, resinterval, arg0);
 }
 
-uint16_t opt_min(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_min(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (a0interval.max < a1interval.min) {
         return arg0;
     }
     if (a1interval.max < a0interval.min) {
         return arg1;
     }
-    if (arg0 == arg1) {
-        return arg0;
-    }
-    struct op arg0op = opt->resultops[arg0];
-    if (arg0op.f == func_min) {
-        // min(min(a, b), a) = min(a, b)
-        if (arg0op.binary.a0 == arg1 && arg0op.binary.a1 == arg1) {
-            return arg0;
-        }
-    }
-    struct op arg1op = opt->resultops[arg1];
-    if (arg1op.f == func_min) {
-        // min(a, min(a, b)) = min(a, b)
-        if (arg1op.binary.a0 == arg1 && arg1op.binary.a1 == arg1) {
-            return arg1;
-        }
-    }
+    //if (arg0 == arg1) {
+    //    return arg0;
+    //}
+    //struct op arg0op = opt->resultops[arg0];
+    //if (arg0op.f == func_min) {
+    //    // min(min(a, b), a) = min(a, b)
+    //    if (arg0op.binary.a0 == arg1 && arg0op.binary.a1 == arg1) {
+    //        return arg0;
+    //    }
+    //}
+    //struct op arg1op = opt->resultops[arg1];
+    //if (arg1op.f == func_min) {
+    //    // min(a, min(a, b)) = min(a, b)
+    //    if (arg1op.binary.a0 == arg1 && arg1op.binary.a1 == arg1) {
+    //        return arg1;
+    //    }
+    //}
     struct interval resinterval;
     resinterval.min = fminf(a0interval.min, a1interval.min);
     resinterval.max = fminf(a0interval.max, a1interval.max);
@@ -424,30 +426,30 @@ uint16_t opt_min(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t ar
     return opt_default2(func_min, opt, resinterval, arg0, arg1);
 }
 
-uint16_t opt_max(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_max(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (a0interval.min > a1interval.max) {
         return arg0;
     }
     if (a1interval.min > a0interval.max) {
         return arg1;
     }
-    if (arg0 == arg1) {
-        return arg0;
-    }
-    struct op arg0op = opt->resultops[arg0];
-    if (arg0op.f == func_max) {
-        // max(max(a, b), a) = max(a, b)
-        if (arg0op.binary.a0 == arg1 && arg0op.binary.a1 == arg1) {
-            return arg0;
-        }
-    }
-    struct op arg1op = opt->resultops[arg1];
-    if (arg1op.f == func_max) {
-        // max(a, max(a, b)) = max(a, b)
-        if (arg1op.binary.a0 == arg1 && arg1op.binary.a1 == arg1) {
-            return arg1;
-        }
-    }
+    //if (arg0 == arg1) {
+    //    return arg0;
+    //}
+    //struct op arg0op = opt->resultops[arg0];
+    //if (arg0op.f == func_max) {
+    //    // max(max(a, b), a) = max(a, b)
+    //    if (arg0op.binary.a0 == arg1 && arg0op.binary.a1 == arg1) {
+    //        return arg0;
+    //    }
+    //}
+    //struct op arg1op = opt->resultops[arg1];
+    //if (arg1op.f == func_max) {
+    //    // max(a, max(a, b)) = max(a, b)
+    //    if (arg1op.binary.a0 == arg1 && arg1op.binary.a1 == arg1) {
+    //        return arg1;
+    //    }
+    //}
     struct interval resinterval;
     resinterval.min = fmaxf(a0interval.min, a1interval.min);
     resinterval.max = fmaxf(a0interval.max, a1interval.max);
@@ -458,7 +460,7 @@ uint16_t opt_max(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t ar
     return opt_default2(func_max, opt, resinterval, arg0, arg1);
 }
 
-uint16_t opt_mul(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_mul(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (a0interval.min == a0interval.max) {
         if (a0interval.min == 0) {
             return opt_newconst(opt, 0);
@@ -487,7 +489,7 @@ uint16_t opt_mul(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t ar
     return opt_default2(func_mul, opt, resinterval, arg0, arg1);
 }
 
-uint16_t opt_sub(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_sub(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (arg0 == arg1) {
         return opt_newconst(opt, 0);
     }
@@ -507,7 +509,7 @@ uint16_t opt_sub(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t ar
     return opt_default2(func_sub, opt, resinterval, arg0, arg1);
 }
 
-uint16_t opt_add(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_add(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (a0interval.min == a0interval.max) {
         if (a0interval.min == 0) {
             return arg1;
@@ -524,12 +526,12 @@ uint16_t opt_add(struct op op, struct optimizer* opt, uint16_t arg0, uint16_t ar
     return opt_default2(func_add, opt, resinterval, arg0, arg1);
 }
 
-uint16_t opt_done(struct op op, struct optimizer* opt, uint16_t arg0, struct interval a0interval) {
+opnum opt_done(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
     return opt_default1(func_done, opt, a0interval, arg0);
 }
 
-uint16_t opt_op(struct op op, struct optimizer* opt) {
-    uint16_t a0, a1;
+opnum opt_op(struct op op, struct optimizer* opt) {
+    opnum a0, a1;
     struct interval a0interval;
     struct interval a1interval;
     switch(op.f) {
@@ -600,8 +602,8 @@ uint16_t opt_op(struct op op, struct optimizer* opt) {
 void opt_dead_code_elimination(struct optimizer* opt, int last_op) {
     // reuse the opreplacements array to mark the ops that are used
     // mark all ops as unused
-    const uint16_t DEAD = 0;
-    const uint16_t USED = 1;
+    const opnum DEAD = 0;
+    const opnum USED = 1;
     for (int i = 0; i < last_op; i++) {
         opt->opreplacements[i] = DEAD;
     }
@@ -688,7 +690,7 @@ struct optresult {
     struct op* ops;
 };
 
-int opt_convert_to_shortcut_min(struct optimizer* opt, uint16_t lastop) {
+int opt_convert_to_shortcut_min(struct optimizer* opt, opnum lastop) {
     int converted = 0;
     while (1) {
         struct op op = opt->resultops[lastop];
@@ -707,7 +709,7 @@ int opt_convert_to_shortcut_min(struct optimizer* opt, uint16_t lastop) {
     return converted;
 }
 
-uint16_t opt_work_backwards(struct optimizer* opt, uint16_t lastop) {
+opnum opt_work_backwards(struct optimizer* opt, opnum lastop) {
     while (1) {
         struct op op = opt->resultops[lastop];
         if (op.f == func_done) {
@@ -723,7 +725,7 @@ uint16_t opt_work_backwards(struct optimizer* opt, uint16_t lastop) {
                 lastop = op.binary.a0;
                 continue;
             }
-            uint16_t narg;
+            opnum narg;
             narg = opt_work_backwards(opt, op.binary.a0);
             if (narg != op.binary.a0) {
                 op.binary.a0 = narg;
@@ -750,7 +752,7 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
     int i = 0;
     for (i = 0; i < 65536; i++) {
         struct op op = ops[i];
-        uint16_t newopindex = opt_op(op, opt);
+        opnum newopindex = opt_op(op, opt);
         opt->opreplacements[i] = newopindex;
         //if (op.should_return_if_neg) {
         //    if (opt->intervals[newopindex].max <= 0.0) {
@@ -761,7 +763,7 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
             break;
         }
     }
-    uint16_t last_op = opt->opreplacements[i];
+    opnum last_op = opt->opreplacements[i];
     struct optresult res;
     res.min = opt->intervals[last_op].min;
     res.max = opt->intervals[last_op].max;
@@ -917,18 +919,18 @@ hash(unsigned char *str, int length)
     return hash;
 }
 
-uint16_t parse_arg(char* arg, char* names[], uint16_t* hashmap, uint16_t count) {
+opnum parse_arg(char* arg, char* names[], opnum* hashmap, opnum count) {
     // parse the argument
     // it's always a name that must exist in the names list.
     int len = strlen(arg);
     if (arg[len - 1] == '\n') len--;
     // first try the hashmap. we don't deal with collisions
-    uint16_t i = hashmap[hash((unsigned char*)arg, len) & 0xffff];
+    opnum i = hashmap[hash((unsigned char*)arg, len) & 0xffff];
     if (strncmp(arg, names[i], len) == 0) {
         return i;
     }
     // go through that list, compare the strings, return the index of said string
-    for (uint16_t i = 0; i < count; i++) {
+    for (opnum i = 0; i < count; i++) {
         if (strncmp(arg, names[i], len) == 0) {
             return i;
         }
@@ -970,7 +972,7 @@ enum func parse_operator_name(char* name) {
     exit(1);
 }
 
-struct op parse_op(char* line, char* names[], uint16_t* hashmap, uint16_t count) {
+struct op parse_op(char* line, char* names[], opnum* hashmap, opnum count) {
     // examples:
     // _0 const 2.95
     // _1 var-x
@@ -1042,8 +1044,8 @@ struct op* parse(FILE *f) {
     // this is a stub, you need to implement the parsing logic
     struct op* ops = create_ops();
     char* names[65536];
-    uint16_t hashmap[65536];
-    memset(hashmap, 0, sizeof(uint16_t) * 65536);
+    opnum hashmap[65536];
+    memset(hashmap, 0, sizeof(opnum) * 65536);
     size_t count = 0;
     char line[1024];
     while (fgets(line, sizeof(line), f)) {
