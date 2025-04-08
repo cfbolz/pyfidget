@@ -319,7 +319,7 @@ uint16_t opt_neg(struct op op, struct optimizer* opt, uint16_t arg0, struct inte
     struct op arg0op = opt->resultops[arg0];
     if (arg0op.f == func_neg) {
         // remove the neg
-        return opt_default1(func_neg, opt, a0interval, arg0op.unary.a0);
+        return arg0op.unary.a0;
     }
     return opt_default1(func_neg, opt, resinterval, arg0);
 }
