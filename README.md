@@ -13,7 +13,7 @@ personally was the fact that the formula is basically a trace in SSA-form – a
 linear sequence of operations, where every variable is assinged exactly once.
 The challenge is to evaluate the formula as fast as possible. I tried a number
 of ideas how to speed up execution and will talk about them in this somewhat
-meandering post. Most of it follows Matt's implementation [Fidget]() very
+meandering post. Most of it follows Matt's implementation [Fidget](https://github.com/mkeeter/fidget) very
 closely. Ther are two points of difference:
 - I tried to add more peephole optimizations, but they didn't end up helping
   much.
@@ -49,13 +49,15 @@ color of the pixel, the absolute value is not important.
 
 ## Using Quadtrees to evaluate the picture
 
-The approach that Matt describes in his really excellent [talk]() is to
-recursively subdivide the image into quadrants, and evaluate the formula in
-each quadrant. For every quadrant you can simplify the formula by doing a range
-analysis. At the bottom of the recursion you either reach a square where the
-range analysis reveals that the sign for all pixels is determined, then you can
-fill in all the pixels of the quadrant. Or you can evaluate the (now much
-simpler) formula in the quadrant by executing it for every pixel.
+The approach that Matt describes in his really excellent
+[talk](https://www.youtube.com/watch?v=UxGxsGnbyJ4) is to use
+[quadtrees](https://en.wikipedia.org/wiki/Quadtree): recursively subdivide the
+image into quadrants, and evaluate the formula in each quadrant. For every
+quadrant you can simplify the formula by doing a range analysis. At the bottom
+of the recursion you either reach a square where the range analysis reveals
+that the sign for all pixels is determined, then you can fill in all the pixels
+of the quadrant. Or you can evaluate the (now much simpler) formula in the
+quadrant by executing it for every pixel.
 
 This is an interesting use case of compiler/optimization techniques because it
 requires the optimizer to execute really quickly, since it is an essential part
@@ -78,13 +80,13 @@ interpretation](https://pypy.org/posts/2024/08/toy-knownbits.html) of the
 operations. The optimizer does a sequential forward pass over the input
 program. For every operation, the output interval is computed. The optimizer
 also performs optimizations based on the computed intervals, which helps in
-reducing the number of operations executed (I'll talk about this later).
+reducing the number of operations executed (I'll talk about this further down).
 
 The resulting optimized traces are simply interpreted. Matt talks about also
 generating machine code from them, but when I tried to use PyPy's JIT for that
 it was simply way too slow at producing machine code.
 
-## Interval analysis as abstract interpretation
+## Testing soundness of the interval abstract domain
 
 To make sure that my interval computation in the optimizer is correct, I
 implemented a hypothesis-based property based test. It checks the abstract
@@ -159,7 +161,7 @@ max(x, max(x, y)) => max(x, y)    4.23%
 ```
 
 In the end it turned out that having these extra optimization rules made the
-total runtime of the system go down. Checking for the rewrites isn't free, and
+total runtime of the system go up. Checking for the rewrites isn't free, and
 since they apply so rarely they don't pay for their own cost in terms of
 improved performance.
 
