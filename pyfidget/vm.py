@@ -677,7 +677,7 @@ def render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, 
              'time opt %s' % (t2 - t1)]
     if maximum < 0:
         descr.append('fully inside')
-        output.append('%s [label="%s", fillcolor=red, shape=box];' % (label, '\\l'.join(descr), frame.program.num_operations()))
+        output.append('%s [label="%s", fillcolor=red, shape=box];' % (label, '\\l'.join(descr)))
         _fill_black(width, height, result, startx, stopx, starty, stopy)
         return
     elif minimum > 0:

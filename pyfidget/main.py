@@ -60,7 +60,7 @@ def main(argv):
         print("time, octree with optimizer: %s" % (t2 - t1))
     if phase == 4:
         t1 = time.time()
-        for i in range(500):
+        for i in range(100):
             data = render_image_octree_optimize(operations, length, length, *args)
         t2 = time.time()
         print("time, octree with optimizer, 500 times, average: %s" % ((t2 - t1) / 500.))

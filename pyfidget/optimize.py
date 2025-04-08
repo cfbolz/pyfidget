@@ -96,10 +96,10 @@ def optimize(program, a, b, c, d, e, f, for_direct=True):
     result = work_backwards(resultops, result, opt.intervalframe.minvalues, opt.intervalframe.maxvalues, for_direct=for_direct)
     res = opt.dce(result)
     #if not objectmodel.we_are_translated() and for_direct:
-    #    print(res.pretty_format())
+    #    print(res.num_operations(), "NUMOPS")
     #    if 50 < res.num_operations() < 1000:
     #        d = collect_uses(res)
-    #        #graph(res, d)
+    #        res.view()
 
     opt.delete()
     #if not objectmodel.we_are_translated():
