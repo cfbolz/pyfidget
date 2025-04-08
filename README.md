@@ -217,7 +217,7 @@ y var-y
 ```
 
 Because that expression has the same sign as the original expression: if `x >
-0.1`, for the result of min(x, y) to be negative then y needs to be negative.
+0.1`, for the result of `min(x, y)` to be negative then `y` needs to be negative.
 
 Another, more complex, example is this:
 
@@ -255,8 +255,7 @@ results further down.
 
 There is another idea how to short-circuit the evaluation of expressions that I
 tried briefly but didn't pursue to the end. Let's go back to the first example
-of the previous subsection, but with different intervals
-
+of the previous subsection, but with different intervals:
 
 ```
 x var-x     # [-1, 1]
@@ -304,6 +303,7 @@ that interval. It then runs the optimizer on the input program and checks that
 the output program has the same result as the input program. This is again
 implemented with `hypothesis`.
 
+
 ## Vizualizing programs
 
 It's actually surprisingly annoying to visualize `prospero.vm` well, because
@@ -317,7 +317,7 @@ it still wasn't a big enough improvement to be able to visualize all of
 Here's a visualization of the optimized `prospero.vm` at one of the octree
 levels:
 
-![alt text](image.png)
+![graph vizualization of a part of the input program](image.png)
 
 The result is on top, every node points to its arguments. The `min` and `max`
 operations form a kind of "spine" of the expression tree, because they are
@@ -357,6 +357,10 @@ rounding behaviour between the widths was different.
 
 I solved those by using `double` in C when running the random tests by means of
 an `IFDEF`.
+
+It's super fun to watch the random program generator produce random images, here are a few:
+
+![glitchy random black and white images](random.mp4)
 
 
 ## Performance
