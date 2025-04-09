@@ -6,7 +6,7 @@ from pyfidget.vm import DirectFrame
 from pyfidget.parse import parse
 from pyfidget.optimize import opt_program
 
-regular_floats = strategies.floats(-2, 2, allow_nan=False, allow_infinity=False)
+regular_floats = strategies.floats(-10000, 10000, allow_nan=False, allow_infinity=False)
 
 all_operation_generators = []
 def opgen(func):
@@ -55,7 +55,7 @@ def random_programs(draw):
     prev_op = len(ops) - 1
     for i in range(num_final_ops):
         arg0 = draw(strategies.integers(0, len(ops) - 1))
-        func = draw(strategies.sampled_from(['min', 'max']))
+        func = draw(strategies.sampled_from(['add', 'sub', 'min', 'max', 'mul']))
         if draw(strategies.booleans()):
             arg0, arg1 = [arg0, prev_op]
         else:
@@ -66,15 +66,15 @@ def random_programs(draw):
 
 
 @settings(deadline=None)
-@given(random_programs(), strategies.sampled_from([1024]))
-#@example('_0 var-x\n_1 var-x\n_2 square _0\n_3 square _0\n_4 var-x\n_5 square _0\n_6 var-x\n_7 var-x\n_8 square _0\n_9 var-x\n_a var-x\n_b square _0\n_c square _0\n_d var-x\n_e var-x\n_f var-x\n_10 neg _0\n_11 neg _10', 16)
-#@example('_0 const 0.000000\n_1 var-x\n_2 mul _1 _1\n_3 sqrt _2\n_4 add _3 _0\n_5 add _4 _0\n_6 max _5 _0', 16)
-#@example('_0 var-x\n_1 add _0 _0\n_2 add _1 _0\n_3 add _2 _0\n_4 add _3 _0\n_5 add _4 _0\n_6 add _5 _0\n_7 add _6 _0\n_8 sub _0 _7\n_9 max _8 _0', 8)
+@given(random_programs(), strategies.sampled_from([8, 16, 32, 64, 128, 256, 512, 1024]))
+@example('_0 var-x\n_1 var-x\n_2 square _0\n_3 square _0\n_4 var-x\n_5 square _0\n_6 var-x\n_7 var-x\n_8 square _0\n_9 var-x\n_a var-x\n_b square _0\n_c square _0\n_d var-x\n_e var-x\n_f var-x\n_10 neg _0\n_11 neg _10', 16)
+@example('_0 const 0.000000\n_1 var-x\n_2 mul _1 _1\n_3 sqrt _2\n_4 add _3 _0\n_5 add _4 _0\n_6 max _5 _0', 16)
+@example('_0 var-x\n_1 add _0 _0\n_2 add _1 _0\n_3 add _2 _0\n_4 add _3 _0\n_5 add _4 _0\n_6 add _5 _0\n_7 add _6 _0\n_8 sub _0 _7\n_9 max _8 _0', 8)
 def test_random(program, imagesize):
     frame = DirectFrame(parse(program))
     newprogram, minimum, maximum = opt_program(frame.program, -1, 1, -1, 1, 0.0, 0.0)
     topdir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    executable = os.path.join(topdir, "c-pyfidget")
+    executable = os.path.join(topdir, "c-pyfidget-test")
     vmpath = os.path.join(topdir, "random.vm")
     outpath = os.path.join(topdir, "random.ppm")
     with open(vmpath, "w") as f:
@@ -86,20 +86,12 @@ def test_random(program, imagesize):
     assert not res
     with open(outpath) as f:
         output = f.read()
+    #outpath2 = os.path.join(topdir, "random%x.ppm" % hash(output))
+    #with open(outpath2, "w") as f:
+    #    f.write(output)
     start = "P6\n%s %s\n255\n" % (imagesize, imagesize)
     assert output.startswith(start)
     rest = output[len(start)::3]
-    zeros = rest.count('\x00')
-    zeros = int(zeros / float(imagesize * imagesize) * 1000)
-    first_zero = rest.find('\x00')
-    if first_zero < 0:
-        first_zero = 9999
-    first_zero = int(first_zero / float(imagesize * imagesize) * 1000)
-    outpath2 = os.path.join(topdir, "random_%04i_%04i_%x.ppm" % (zeros, first_zero, hash(output)))
-    print outpath2
-    with open(outpath2, "w") as f:
-        f.write(output)
-    return
     print program
     print "______"
     print newprogram
