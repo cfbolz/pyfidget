@@ -48,7 +48,7 @@ special operation that returns the x-coordinate of the pixel being rendered,
 and equivalently for `var-y` the y-coordinate. The sign of the result gives the
 color of the pixel, the absolute value is not important.
 
-## Using Quadtrees to evaluate the picture
+## Using Quadtrees to render the picture
 
 The approach that Matt describes in his really excellent
 [talk](https://www.youtube.com/watch?v=UxGxsGnbyJ4) is to use
@@ -60,11 +60,15 @@ that the sign for all pixels is determined, then you can fill in all the pixels
 of the quadrant. Or you can evaluate the (now much simpler) formula in the
 quadrant by executing it for every pixel.
 
-This is an interesting use case of compiler/optimization techniques because it
+This is an interesting use case of JIT compiler/optimization techniques because it
 requires the optimizer to execute really quickly, since it is an essential part
-of the performance of the algorithm.
+of the performance of the algorithm. The optimizer runs literally
+hundreds of times to render a single image, and if the algorithm is used for 3D
+models it becomes even more crucial.
 
 ## Applying the toy optimizer pattern
+
+TODO Max: IMO it's not clear what it means by "applying the toy optimizer pattern"
 
 The first thing I did was to implement a simple interpreter for the SSA-form
 input program. The interpreter is a simple register machine, where every
@@ -187,6 +191,8 @@ re-done with a larger set of example inputs, if this were an actually serious
 implementation.
 
 ## Demanded Information Optimization
+
+TODO Max: I am having a hard time understanding the demanded bits thing from your localized-to-prospero explanation. I think some of it is that I am wondering "what about the other uses of operation A that operation B only needs one bit from" and part of it is that the sign operations are implicit here
 
 LLVM has an information called 'demanded bits'. It is a backwards analysis that
 allows you to determine which bits of a value are actually used in the final
@@ -381,25 +387,26 @@ an `IFDEF`.
 
 It's super fun to watch the random program generator produce random images, here are a few:
 
-![glitchy random black and white images](random.mp4)
-
-TODO: make longer video
+<video width="1024" height="1024" controls>
+  <source src="random.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ## Performance
 
 Some very rough performance results on my laptop (an AMD Ryzen 7 PRO 7840U with
 32 GiB RAM running Ubuntu 24.04), comparing the RPython version, the C version
-(with and without demanded bits), and Fidget (in `vm` mode, its JIT made things
+(with and without demanded info), and Fidget (in `vm` mode, its JIT made things
 worse for me), both for 1024x1024 and 4096x4096 images:
 
 | Implementation       | 1024x1024 | 4096x4096 |
 |----------------------|-----------|-----------|
 | RPython              | 26.8ms    | 75.0ms    |
-| C (no demanded bits) | 24.5ms    | 45.0ms    |
-| C (demanded bits)    | 18.0ms    | 37.0ms    |
+| C (no demanded info) | 24.5ms    | 45.0ms    |
+| C (demanded info)    | 18.0ms    | 37.0ms    |
 | Fidget               | 10.8ms    | 57.8ms    |
 
-The demanded bits seem to help quite a bit, which was nice to see.
+The demanded info seem to help quite a bit, which was nice to see.
 
 ## Conclusion
 
