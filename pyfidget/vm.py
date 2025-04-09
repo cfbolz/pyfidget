@@ -7,31 +7,6 @@ from pyfidget.operations import OPS
 def should_unroll_one_iteration(program):
     return True
 
-driver_render = jit.JitDriver(greens=['program'],
-                              reds=['index', 'row_index', 'column_index', 'width', 'height',
-                                    'frame', 'result',
-                                    'dx', 'minx', 'dy'],
-                              is_recursive=True)
-
-driver_octree = jit.JitDriver(
-        greens=['program'],
-        reds='auto',
-        should_unroll_one_iteration=should_unroll_one_iteration,
-        is_recursive=True)
-
-driver_octree_optimize = jit.JitDriver(
-        greens=['program'],
-        reds='auto',
-        should_unroll_one_iteration=should_unroll_one_iteration,
-        is_recursive=True)
-
-driver_render_part = jit.JitDriver(
-        greens=['program'],
-        reds='auto',
-        should_unroll_one_iteration=should_unroll_one_iteration,
-        is_recursive=True)
-
-
 
 class ProgramBuilder(object):
     def __init__(self, sizehint=10, const_sizehint=5):
@@ -143,52 +118,6 @@ class ProgramBuilder(object):
         graph(self)
 
 
-class Frame(object):
-    @jit.unroll_safe
-    def run(self):
-        program = self.program
-        jit.promote(program)
-        num_ops = program.num_operations()
-        self.setup(num_ops)
-        for op in range(num_ops):
-            if jit.we_are_jitted():
-                jit.jit_debug(program.op_to_str(op))
-            self._run_op(op)
-
-    def _run_op(self, op):
-        program = self.program
-        func, arg0, arg1 = program.get_func_and_args(op)
-        if func == OPS.const:
-            self.make_constant(program.consts[arg0], op)
-        elif func == OPS.var_x:
-            self.get_x(op)
-        elif func == OPS.var_y:
-            self.get_y(op)
-        elif func == OPS.var_z:
-            self.get_z(op)
-        elif func == OPS.add:
-            self.add(arg0, arg1, op)
-        elif func == OPS.sub:
-            self.sub(arg0, arg1, op)
-        elif func == OPS.mul:
-            self.mul(arg0, arg1, op)
-        elif func == OPS.max:
-            self.max(arg0, arg1, op)
-        elif func == OPS.min:
-            self.min(arg0, arg1, op)
-        elif func == OPS.square:
-            self.square(arg0, op)
-        elif func == OPS.sqrt:
-            self.sqrt(arg0, op)
-        elif func == OPS.exp:
-            self.exp(arg0, op)
-        elif func == OPS.neg:
-            self.neg(arg0, op)
-        elif func == OPS.abs:
-            self.abs(arg0, op)
-        else:
-            raise ValueError("Invalid operation: %s" % op)
-
 
 class MemManager(object):
     unused_frame = None
@@ -198,7 +127,6 @@ mem_manager = MemManager()
 
 
 class DirectFrame(object):
-    objectmodel.import_from_mixin(Frame)
 
     def __init__(self, program):
         self.program = program
@@ -228,7 +156,7 @@ class DirectFrame(object):
         return self.run()
 
     def setup(self, length):
-        if self.floatvalues and len(self.floatvalues) >= length and not jit.we_are_jitted():
+        if self.floatvalues and len(self.floatvalues) >= length:
             return
         self.floatvalues = [0.0] * length
 
@@ -240,10 +168,9 @@ class DirectFrame(object):
     def run(self):
         from pyfidget.optimize import stats
         program = self.program
-        jit.promote(program)
         num_ops = program.num_operations()
         floatvalues = self.floatvalues
-        if floatvalues and len(floatvalues) >= num_ops and not jit.we_are_jitted():
+        if floatvalues and len(floatvalues) >= num_ops:
             pass
         else:
             floatvalues = self.floatvalues = [0.0] * num_ops
@@ -297,9 +224,6 @@ class DirectFrame(object):
             floatvalues[op] = res
         return self.floatvalues[self.program.size_storage() - 1]
 
-    def _run_op(self, op, func):
-        program = self.program
-
     def add(self, arg0, arg1):
         return arg0 + arg1
 
@@ -352,7 +276,6 @@ def max4(a, b, c, d):
 
 
 class IntervalFrame(object):
-    objectmodel.import_from_mixin(Frame)
 
     def __init__(self, program):
         self.program = program
@@ -515,6 +438,49 @@ class IntervalFrame(object):
     def _exp(self, min0, max0):
         return math.exp(min0), math.exp(max0)
 
+    # only used for tests
+
+    def run(self):
+        program = self.program
+        num_ops = program.num_operations()
+        self.setup(num_ops)
+        for op in range(num_ops):
+            self._run_op(op)
+
+    def _run_op(self, op):
+        program = self.program
+        func, arg0, arg1 = program.get_func_and_args(op)
+        if func == OPS.const:
+            self.make_constant(program.consts[arg0], op)
+        elif func == OPS.var_x:
+            self.get_x(op)
+        elif func == OPS.var_y:
+            self.get_y(op)
+        elif func == OPS.var_z:
+            self.get_z(op)
+        elif func == OPS.add:
+            self.add(arg0, arg1, op)
+        elif func == OPS.sub:
+            self.sub(arg0, arg1, op)
+        elif func == OPS.mul:
+            self.mul(arg0, arg1, op)
+        elif func == OPS.max:
+            self.max(arg0, arg1, op)
+        elif func == OPS.min:
+            self.min(arg0, arg1, op)
+        elif func == OPS.square:
+            self.square(arg0, op)
+        elif func == OPS.sqrt:
+            self.sqrt(arg0, op)
+        elif func == OPS.exp:
+            self.exp(arg0, op)
+        elif func == OPS.neg:
+            self.neg(arg0, op)
+        elif func == OPS.abs:
+            self.abs(arg0, op)
+        else:
+            raise ValueError("Invalid operation: %s" % op)
+
 
 def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
     minx = float(minx)
@@ -531,10 +497,6 @@ def render_image_naive(frame, width, height, minx, maxx, miny, maxy):
     dx = (maxx - minx) / (width - 1)
     dy = (maxy - miny) / (height - 1)
     while 1:
-        driver_render.jit_merge_point(program=frame.program, index=index,
-                                      row_index=row_index, column_index=column_index,
-                                      width=width, height=height, frame=frame,
-                                      minx=minx, dx=dx, dy=dy, result=result)
         res = frame.run_floats(x, y, 0)
         result[index] = chr(res <= 0.0)
         index += 1
@@ -557,8 +519,6 @@ def render_image_naive_fragment(frame, width, height, minx, maxx, miny, maxy, re
         x = minx + dx * startx
         index = row_index * width + startx
         for column_index in range(startx, stopx):
-            driver_render_part.jit_merge_point(program=frame.program)
-            jit.promote(frame.program)
             res = frame.run_floats(x, y, 0)
             result[index] = chr(res <= 0.0)
             index += 1
@@ -573,8 +533,6 @@ LIMIT = 8
 
 def render_image_octree_rec(frame, width, height, minx, maxx, miny, maxy, result, startx, stopx, starty, stopy, level=0):
     # proof of concept
-    driver_octree.jit_merge_point(program=frame.program)
-    jit.promote(frame.program)
     # use intervals to check for uniform color
 
     #print("==" * level, startx, stopx, starty, stopy)
@@ -639,8 +597,6 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
             return
     else:
         newprogram = program
-    if newprogram.num_operations() < 500:
-        driver_octree_optimize.jit_merge_point(program=newprogram)
     midx = (startx + stopx) // 2
     midy = (starty + stopy) // 2
     for new_startx, new_stopx in [(startx, midx), (midx, stopx)]:
@@ -653,7 +609,7 @@ def render_image_octree_rec_optimize(program, width, height, minx, maxx, miny, m
 
 def render_image_octree_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy):
     result = ['\x00'] * (width * height)
-    output = ['digraph G {']
+    output = ['digraph G {', 'rankdir=LR;']
     render_image_octree_rec_optimize_graphviz(frame, width, height, minx, maxx, miny, maxy, result, 0, width, 0, height, output)
     output.append('}')
     return output
