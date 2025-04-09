@@ -21,8 +21,9 @@ closely. Ther are two points of difference:
   operations by only keeping the sign of the result. This optimization ended up
   being very useful.
 
-Most of the prototyping in this post was done in RPython, but I later rewrote
-the program in C to get better performance.
+Most of the prototyping in this post was done in RPython (a statically typable
+subset of Python2, that can be compiled to C), but I later rewrote the program
+in C to get better performance.
 
 ## Input program
 
@@ -301,8 +302,10 @@ optimizer is equivalent to the input program. The test generates random
 operations, random intervals for the operations and a random input value within
 that interval. It then runs the optimizer on the input program and checks that
 the output program has the same result as the input program. This is again
-implemented with `hypothesis`.
-
+implemented with `hypothesis`. Hypothesis' test case minimization feature is
+super useful for finding optimizer bugs. It's just not fun to analyze a problem
+on a many-thousand-operation input file, but Hypothesis often generated reduced
+test cases that were only a few operations long.
 
 ## Vizualizing programs
 
@@ -317,11 +320,22 @@ it still wasn't a big enough improvement to be able to visualize all of
 Here's a visualization of the optimized `prospero.vm` at one of the octree
 levels:
 
-![graph vizualization of a part of the input program](image.png)
+![graph vizualization of a part of the input program](image-prospero-dataflow.png)
 
 The result is on top, every node points to its arguments. The `min` and `max`
 operations form a kind of "spine" of the expression tree, because they are
 unions and intersection in the constructive solid geometry sense.
+
+I also wrote a function to visualize the octree recursion itself, the output
+looks like this:
+
+![graph visualization of the octree recursion, zoomed out](image-octree-zoomed-out.png)
+
+![graph visualization of the octree recursion, zoomed in](image-octree-zoomed-out.png)
+
+Green nodes are where the interval analysis determined that the output must be
+entirely outside the shape. Yellow nodes are where the octree recursion
+bottomed out.
 
 ## C implementation
 
@@ -345,10 +359,17 @@ techniques.
 
 ## Testing the C implementation
 
-To test the C implementation, I used the same random testing approach as in the
+At various points I had bugs in the C implementation, leading to a fun glitchy
+version of prospero:
+
+![glitchy prospero](glitchy-prospero.png)
+
+To find these bugs, I used the same random testing approach as in the
 RPython version. I generated random input programs as strings in Python and
 checked that the output of the C implementation was equivalent to the output of
-the RPython implementation. This helped ensure that the C implementation was
+the RPython implementation (simply by calling out to the shell and reading the
+generated image, then comparing pixels). This helped ensure that the C
+implementation was
 correct and didn't introduce any bugs. It was surprisingly tricky to get this
 right, for reasons that I didn't expect. At lot of them are related to the fact
 that in C I used `float` and Python uses `double` for its (Python) `float`
@@ -362,6 +383,7 @@ It's super fun to watch the random program generator produce random images, here
 
 ![glitchy random black and white images](random.mp4)
 
+TODO: make longer video
 
 ## Performance
 
