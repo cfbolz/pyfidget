@@ -42,6 +42,11 @@ enum func {
     func_max,
 };
 
+//typedef union {
+//  uint64_t as_uint64;
+//  double as_double;
+//} arg;
+
 // tagged union
 struct op {
     union {
@@ -73,6 +78,10 @@ float8 REGCALL dispatch(struct op ops[], int pc, float8 x, FLOAT y);
 
 float8 values[65536];
 
+float8 getargvalue(opnum arg) {
+    return values[arg];
+}
+
 float8 REGCALL execute_varx(struct op ops[], int pc, float8 x, FLOAT y) {
     values[pc] = x;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
@@ -94,53 +103,53 @@ float8 REGCALL execute_const(struct op ops[], int pc, float8 x, FLOAT y) {
 }
 
 float8 REGCALL execute_abs(struct op ops[], int pc, float8 x, FLOAT y) {
-    values[pc] = __builtin_elementwise_abs(values[ops[pc].unary.a0]);
+    values[pc] = __builtin_elementwise_abs(getargvalue(ops[pc].unary.a0));
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_sqrt(struct op ops[], int pc, float8 x, FLOAT y) {
-    values[pc] = __builtin_elementwise_sqrt(values[ops[pc].unary.a0]);
+    values[pc] = __builtin_elementwise_sqrt(getargvalue(ops[pc].unary.a0));
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_square(struct op ops[], int pc, float8 x, FLOAT y) {
-    float8 arg = values[ops[pc].unary.a0];
+    float8 arg = getargvalue(ops[pc].unary.a0);
     values[pc] = arg * arg;
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_neg(struct op ops[], int pc, float8 x, FLOAT y) {
-    values[pc] = -values[ops[pc].unary.a0];
+    values[pc] = -getargvalue(ops[pc].unary.a0);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_add(struct op ops[], int pc, float8 x, FLOAT y) {
-    values[pc] = values[ops[pc].binary.a0] + values[ops[pc].binary.a1];
+    values[pc] = getargvalue(ops[pc].binary.a0) + getargvalue(ops[pc].binary.a1);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_sub(struct op ops[], int pc, float8 x, FLOAT y) {
-    values[pc] = values[ops[pc].binary.a0] - values[ops[pc].binary.a1];
+    values[pc] = getargvalue(ops[pc].binary.a0) - getargvalue(ops[pc].binary.a1);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_mul(struct op ops[], int pc, float8 x, FLOAT y) {
-    values[pc] = values[ops[pc].binary.a0] * values[ops[pc].binary.a1];
+    values[pc] = getargvalue(ops[pc].binary.a0) * getargvalue(ops[pc].binary.a1);
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_min(struct op ops[], int pc, float8 x, FLOAT y) {
-    values[pc] = __builtin_elementwise_min(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
+    values[pc] = __builtin_elementwise_min(getargvalue(ops[pc].binary.a0), getargvalue(ops[pc].binary.a1));
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_max(struct op ops[], int pc, float8 x, FLOAT y) {
-    values[pc] = __builtin_elementwise_max(values[ops[pc].binary.a0], values[ops[pc].binary.a1]);
+    values[pc] = __builtin_elementwise_max(getargvalue(ops[pc].binary.a0), getargvalue(ops[pc].binary.a1));
     MUSTTAIL return dispatch(ops, pc + 1, x, y);
 }
 
 float8 REGCALL execute_done(struct op ops[], int pc, float8 x, FLOAT y) {
-    return values[ops[pc].unary.a0];
+    return getargvalue(ops[pc].unary.a0);
 }
 
 float8 REGCALL dispatch(struct op ops[], int pc, float8 x, FLOAT y) {
