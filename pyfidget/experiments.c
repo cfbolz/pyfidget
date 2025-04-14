@@ -278,6 +278,11 @@ struct interval getarginterval(opnum arg, struct optimizer* opt) {
     return opt->intervals[arg];
 }
 
+opnum getargreplacement(opnum arg, struct optimizer* opt) {
+    return opt->opreplacements[arg];
+}
+
+
 opnum opt_default(opnum sourceindex, struct op newop, struct optimizer* opt, struct interval interval) {
     opt->resultops[opt->count] = newop;
     opt->intervals[opt->count] = interval;
@@ -560,53 +565,53 @@ opnum opt_op(opnum sourceindex, struct optimizer* opt) {
         case func_const:
             return opt_const(sourceindex, opt, op.constant);
         case func_abs:
-            a0 = opt->opreplacements[op.unary.a0];
+            a0 = getargreplacement(op.unary.a0, opt);
             a0interval = getarginterval(a0, opt);
             return opt_abs(sourceindex, opt, a0, a0interval);
         case func_sqrt:
-            a0 = opt->opreplacements[op.unary.a0];
+            a0 = getargreplacement(op.unary.a0, opt);
             a0interval = getarginterval(a0, opt);
             return opt_sqrt(sourceindex, opt, a0, a0interval);
         case func_square:
-            a0 = opt->opreplacements[op.unary.a0];
+            a0 = getargreplacement(op.unary.a0, opt);
             a0interval = getarginterval(a0, opt);
             return opt_square(sourceindex, opt, a0, a0interval);
         case func_neg:
-            a0 = opt->opreplacements[op.unary.a0];
+            a0 = getargreplacement(op.unary.a0, opt);
             a0interval = getarginterval(a0, opt);
             return opt_neg(sourceindex, opt, a0, a0interval);
         case func_add:
-            a0 = opt->opreplacements[op.binary.a0];
-            a1 = opt->opreplacements[op.binary.a1];
+            a0 = getargreplacement(op.binary.a0, opt);
+            a1 = getargreplacement(op.binary.a1, opt);
             a0interval = getarginterval(a0, opt);
             a1interval = getarginterval(a1, opt);
             return opt_add(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_sub:
-            a0 = opt->opreplacements[op.binary.a0];
-            a1 = opt->opreplacements[op.binary.a1];
+            a0 = getargreplacement(op.binary.a0, opt);
+            a1 = getargreplacement(op.binary.a1, opt);
             a0interval = getarginterval(a0, opt);
             a1interval = getarginterval(a1, opt);
             return opt_sub(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_mul:
-            a0 = opt->opreplacements[op.binary.a0];
-            a1 = opt->opreplacements[op.binary.a1];
+            a0 = getargreplacement(op.binary.a0, opt);
+            a1 = getargreplacement(op.binary.a1, opt);
             a0interval = getarginterval(a0, opt);
             a1interval = getarginterval(a1, opt);
             return opt_mul(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_min:
-            a0 = opt->opreplacements[op.binary.a0];
-            a1 = opt->opreplacements[op.binary.a1];
+            a0 = getargreplacement(op.binary.a0, opt);
+            a1 = getargreplacement(op.binary.a1, opt);
             a0interval = getarginterval(a0, opt);
             a1interval = getarginterval(a1, opt);
             return opt_min(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_max:
-            a0 = opt->opreplacements[op.binary.a0];
-            a1 = opt->opreplacements[op.binary.a1];
+            a0 = getargreplacement(op.binary.a0, opt);
+            a1 = getargreplacement(op.binary.a1, opt);
             a0interval = getarginterval(a0, opt);
             a1interval = getarginterval(a1, opt);
             return opt_max(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_done:
-            a0 = opt->opreplacements[op.unary.a0];
+            a0 = getargreplacement(op.unary.a0, opt);
             a0interval = getarginterval(a0, opt);
             return opt_done(sourceindex, opt, a0, a0interval);
         default:
@@ -771,7 +776,7 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
             break;
         }
     }
-    opnum last_op = opt->opreplacements[i];
+    opnum last_op = getargreplacement(i, opt);
     struct interval resint = getarginterval(last_op, opt);
     struct optresult res;
     res.min = resint.min;
@@ -785,7 +790,7 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
         return res;
     }
     last_op = opt_work_backwards(opt, last_op);
-    if (last_op != opt->opreplacements[i]) {
+    if (last_op != getargreplacement(i, opt)) {
         struct op done;
         done.f = func_done;
         done.unary.a0 = last_op++;
