@@ -42,10 +42,10 @@ enum func {
     func_max,
 };
 
-//typedef union {
-//  uint64_t as_uint64;
-//  double as_double;
-//} arg;
+typedef union {
+  opnum arg;
+  FLOAT constant;
+} arg;
 
 // tagged union
 struct op {
@@ -231,6 +231,7 @@ bool isnan_interval(struct interval a) {
     return isnan(a.min) || isnan(a.max);
 }
 
+
 struct optimizer {
     struct op* ops;
     struct op* resultops;
@@ -243,6 +244,7 @@ struct optimizer {
     FLOAT maxy;
     struct optimizer* next_free;
 };
+
 
 struct optimizer* free_optimizers = NULL;
 
@@ -270,6 +272,10 @@ void destroy_optimizer(struct optimizer* opt) {
     opt->count = 0;
     opt->next_free = free_optimizers;
     free_optimizers = opt;
+}
+
+struct interval getarginterval(opnum arg, struct optimizer* opt) {
+    return opt->intervals[arg];
 }
 
 opnum opt_default(opnum sourceindex, struct op newop, struct optimizer* opt, struct interval interval) {
@@ -359,7 +365,7 @@ opnum opt_abs(opnum sourceindex, struct optimizer* opt, opnum arg0, struct inter
     //}
     //struct op arg0op = opt->resultops[arg0];
     //if (arg0op.f == func_neg) {
-    //    struct interval arg0arg0interval = opt->intervals[arg0op.unary.a0];
+    //    struct interval arg0arg0interval = getarginterval(arg0op.unary.a0, opt);
     //    return opt_abs(op, opt, arg0op.unary.a0, arg0arg0interval);
     //}
     struct interval resinterval;
@@ -555,53 +561,53 @@ opnum opt_op(opnum sourceindex, struct optimizer* opt) {
             return opt_const(sourceindex, opt, op.constant);
         case func_abs:
             a0 = opt->opreplacements[op.unary.a0];
-            a0interval = opt->intervals[a0];
+            a0interval = getarginterval(a0, opt);
             return opt_abs(sourceindex, opt, a0, a0interval);
         case func_sqrt:
             a0 = opt->opreplacements[op.unary.a0];
-            a0interval = opt->intervals[a0];
+            a0interval = getarginterval(a0, opt);
             return opt_sqrt(sourceindex, opt, a0, a0interval);
         case func_square:
             a0 = opt->opreplacements[op.unary.a0];
-            a0interval = opt->intervals[a0];
+            a0interval = getarginterval(a0, opt);
             return opt_square(sourceindex, opt, a0, a0interval);
         case func_neg:
             a0 = opt->opreplacements[op.unary.a0];
-            a0interval = opt->intervals[a0];
+            a0interval = getarginterval(a0, opt);
             return opt_neg(sourceindex, opt, a0, a0interval);
         case func_add:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
-            a0interval = opt->intervals[a0];
-            a1interval = opt->intervals[a1];
+            a0interval = getarginterval(a0, opt);
+            a1interval = getarginterval(a1, opt);
             return opt_add(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_sub:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
-            a0interval = opt->intervals[a0];
-            a1interval = opt->intervals[a1];
+            a0interval = getarginterval(a0, opt);
+            a1interval = getarginterval(a1, opt);
             return opt_sub(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_mul:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
-            a0interval = opt->intervals[a0];
-            a1interval = opt->intervals[a1];
+            a0interval = getarginterval(a0, opt);
+            a1interval = getarginterval(a1, opt);
             return opt_mul(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_min:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
-            a0interval = opt->intervals[a0];
-            a1interval = opt->intervals[a1];
+            a0interval = getarginterval(a0, opt);
+            a1interval = getarginterval(a1, opt);
             return opt_min(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_max:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
-            a0interval = opt->intervals[a0];
-            a1interval = opt->intervals[a1];
+            a0interval = getarginterval(a0, opt);
+            a1interval = getarginterval(a1, opt);
             return opt_max(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_done:
             a0 = opt->opreplacements[op.unary.a0];
-            a0interval = opt->intervals[a0];
+            a0interval = getarginterval(a0, opt);
             return opt_done(sourceindex, opt, a0, a0interval);
         default:
             fprintf(stderr, "Error: unknown operator %d\n", op.f);
@@ -726,11 +732,11 @@ opnum opt_work_backwards(struct optimizer* opt, opnum lastop) {
             continue;
         }
         if (op.f == func_min) {
-            if (opt->intervals[op.binary.a0].min > 0.0) {
+            if (getarginterval(op.binary.a0, opt).min > 0.0) {
                 lastop = op.binary.a1;
                 continue;
             }
-            if (opt->intervals[op.binary.a1].min > 0.0) {
+            if (getarginterval(op.binary.a1, opt).min > 0.0) {
                 lastop = op.binary.a0;
                 continue;
             }
@@ -766,9 +772,10 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
         }
     }
     opnum last_op = opt->opreplacements[i];
+    struct interval resint = getarginterval(last_op, opt);
     struct optresult res;
-    res.min = opt->intervals[last_op].min;
-    res.max = opt->intervals[last_op].max;
+    res.min = resint.min;
+    res.max = resint.max;
     res.ops = NULL;
     if (res.min > 0.0 || res.max <= 0.0) {
 #ifdef PYFIDGETFUZZING
