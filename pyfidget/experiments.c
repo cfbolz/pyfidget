@@ -12,10 +12,14 @@ typedef int16_t opnum;
     typedef double FLOAT;
     #define FABS fabs
     #define SQRT sqrt
+    #define FMIN fmin
+    #define FMAX fmax
 #else
     typedef float FLOAT;
     #define FABS fabsf
     #define SQRT sqrtf
+    #define FMIN fminf
+    #define FMAX fmaxf
 #endif
 
 
@@ -343,7 +347,7 @@ opnum opt_abs(struct op op, struct optimizer* opt, opnum arg0, struct interval a
     //}
     struct interval resinterval;
     resinterval.min = 0.0;
-    resinterval.max = fmaxf(-a0interval.min, a0interval.max);
+    resinterval.max = FMAX(-a0interval.min, a0interval.max);
     return opt_default1(func_abs, opt, resinterval, arg0);
 }
 
@@ -369,7 +373,7 @@ opnum opt_square(struct op op, struct optimizer* opt, opnum arg0, struct interva
         resinterval.max = a0interval.min * a0interval.min;
     } else {
         resinterval.min = 0.0;
-        resinterval.max = fmaxf(a0interval.min * a0interval.min, a0interval.max * a0interval.max);
+        resinterval.max = FMAX(a0interval.min * a0interval.min, a0interval.max * a0interval.max);
     }
     // if the argument of the square is a neg operation, we can remove the neg
     struct op arg0op = opt->resultops[arg0];
@@ -405,8 +409,8 @@ opnum opt_min(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struc
     //    }
     //}
     struct interval resinterval;
-    resinterval.min = fminf(a0interval.min, a1interval.min);
-    resinterval.max = fminf(a0interval.max, a1interval.max);
+    resinterval.min = FMIN(a0interval.min, a1interval.min);
+    resinterval.max = FMIN(a0interval.max, a1interval.max);
     if (isnan_interval(a0interval) || isnan_interval(a1interval)) {
         resinterval.min = NAN;
         resinterval.max = NAN;
@@ -439,8 +443,8 @@ opnum opt_max(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struc
     //    }
     //}
     struct interval resinterval;
-    resinterval.min = fmaxf(a0interval.min, a1interval.min);
-    resinterval.max = fmaxf(a0interval.max, a1interval.max);
+    resinterval.min = FMAX(a0interval.min, a1interval.min);
+    resinterval.max = FMAX(a0interval.max, a1interval.max);
     if (isnan_interval(a0interval) || isnan_interval(a1interval)) {
         resinterval.min = NAN;
         resinterval.max = NAN;
@@ -472,8 +476,8 @@ opnum opt_mul(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struc
         }
     }
     struct interval resinterval;
-    resinterval.min = fminf(fminf(a0interval.min * a1interval.min, a0interval.min * a1interval.max), fminf(a0interval.max * a1interval.min, a0interval.max * a1interval.max));
-    resinterval.max = fmaxf(fmaxf(a0interval.min * a1interval.min, a0interval.min * a1interval.max), fmaxf(a0interval.max * a1interval.min, a0interval.max * a1interval.max));
+    resinterval.min = FMIN(FMIN(a0interval.min * a1interval.min, a0interval.min * a1interval.max), FMIN(a0interval.max * a1interval.min, a0interval.max * a1interval.max));
+    resinterval.max = FMAX(FMAX(a0interval.min * a1interval.min, a0interval.min * a1interval.max), FMAX(a0interval.max * a1interval.min, a0interval.max * a1interval.max));
     return opt_default2(func_mul, opt, resinterval, arg0, arg1);
 }
 
@@ -751,6 +755,9 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
     res.max = opt->intervals[last_op].max;
     res.ops = NULL;
     if (res.min > 0.0 || res.max <= 0.0) {
+#ifdef PYFIDGETFUZZING
+    printf("optimize constant sign %f %f %f %f: minres %f maxres %f\n", minx, maxx, miny, maxy, res.min, res.max);
+#endif
         destroy_optimizer(opt);
         return res;
     }
