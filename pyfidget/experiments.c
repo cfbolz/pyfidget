@@ -272,34 +272,41 @@ void destroy_optimizer(struct optimizer* opt) {
     free_optimizers = opt;
 }
 
-opnum opt_default(struct op newop, struct optimizer* opt, struct interval interval) {
+opnum opt_default(opnum sourceindex, struct op newop, struct optimizer* opt, struct interval interval) {
     opt->resultops[opt->count] = newop;
     opt->intervals[opt->count] = interval;
-    return opt->count++;
+    opnum newindex = opt->count++;
+    opt->opreplacements[sourceindex] = newindex;
+    return newindex;
 }
 
-opnum opt_default0(enum func f, struct optimizer* opt, struct interval interval) {
+opnum opt_remove(opnum sourceindex, opnum newopindex, struct optimizer* opt) {
+    opt->opreplacements[sourceindex] = newopindex;
+    return newopindex;
+}
+
+opnum opt_default0(opnum sourceindex, enum func f, struct optimizer* opt, struct interval interval) {
     struct op newop;
     newop.f = f;
-    return opt_default(newop, opt, interval);
+    return opt_default(sourceindex, newop, opt, interval);
 }
 
-opnum opt_default1(enum func f, struct optimizer* opt, struct interval interval, opnum arg0) {
+opnum opt_default1(opnum sourceindex, enum func f, struct optimizer* opt, struct interval interval, opnum arg0) {
     struct op newop;
     newop.f = f;
     newop.unary.a0 = arg0;
-    return opt_default(newop, opt, interval);
+    return opt_default(sourceindex, newop, opt, interval);
 }
 
-opnum opt_default2(enum func f, struct optimizer* opt, struct interval interval, opnum arg0, opnum arg1) {
+opnum opt_default2(opnum sourceindex, enum func f, struct optimizer* opt, struct interval interval, opnum arg0, opnum arg1) {
     struct op newop;
     newop.f = f;
     newop.binary.a0 = arg0;
     newop.binary.a1 = arg1;
-    return opt_default(newop, opt, interval);
+    return opt_default(sourceindex, newop, opt, interval);
 }
 
-opnum opt_newconst(struct optimizer* opt, FLOAT constant) {
+opnum opt_newconst(opnum sourceindex, struct optimizer* opt, FLOAT constant) {
     struct op newop;
     newop.f = func_const;
     newop.constant = constant;
@@ -308,28 +315,29 @@ opnum opt_newconst(struct optimizer* opt, FLOAT constant) {
     newinterval.min = constant;
     newinterval.max = constant;
     opt->intervals[opt->count] = newinterval;
+    opt->opreplacements[sourceindex] = opt->count;
     return opt->count++;
 }
 
-opnum opt_varx(struct op op, struct optimizer* opt) {
+opnum opt_varx(opnum sourceindex, struct optimizer* opt) {
     struct interval interval = {.min=opt->minx, .max=opt->maxx};
-    return opt_default0(func_varx, opt, interval);
+    return opt_default0(sourceindex, func_varx, opt, interval);
 }
 
-opnum opt_vary(struct op op, struct optimizer* opt) {
+opnum opt_vary(opnum sourceindex, struct optimizer* opt) {
     struct interval interval = {.min=opt->miny, .max=opt->maxy};
-    return opt_default0(func_vary, opt, interval);
+    return opt_default0(sourceindex, func_vary, opt, interval);
 }
 
-opnum opt_varz(struct op op, struct optimizer* opt) {
+opnum opt_varz(opnum sourceindex, struct optimizer* opt) {
     struct interval interval = {.min=0, .max=0};
-    return opt_default0(func_varz, opt, interval);
+    return opt_default0(sourceindex, func_varz, opt, interval);
 }
-opnum opt_const(struct op op, struct optimizer* opt) {
-    return opt_newconst(opt, op.constant);
+opnum opt_const(opnum sourceindex, struct optimizer* opt, FLOAT c) {
+    return opt_newconst(sourceindex, opt, c);
 }
 
-opnum opt_neg(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
+opnum opt_neg(opnum sourceindex, struct optimizer* opt, opnum arg0, struct interval a0interval) {
     struct interval resinterval;
     resinterval.min = -a0interval.max;
     resinterval.max = -a0interval.min;
@@ -337,14 +345,14 @@ opnum opt_neg(struct op op, struct optimizer* opt, opnum arg0, struct interval a
     //struct op arg0op = opt->resultops[arg0];
     //if (arg0op.f == func_neg) {
     //    // remove the neg
-    //    return arg0op.unary.a0;
+    //    return opt_remove(sourceindex, arg0op.unary.a0, opt);
     //}
-    return opt_default1(func_neg, opt, resinterval, arg0);
+    return opt_default1(sourceindex, func_neg, opt, resinterval, arg0);
 }
 
-opnum opt_abs(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
+opnum opt_abs(opnum sourceindex, struct optimizer* opt, opnum arg0, struct interval a0interval) {
     //if (a0interval.min >= 0) {
-    //    return arg0;
+    //    return opt_remove(sourceindex, arg0, opt);
     //}
     //if (a0interval.max <= 0) {
     //    return opt_neg(op, opt, arg0, a0interval);
@@ -357,10 +365,10 @@ opnum opt_abs(struct op op, struct optimizer* opt, opnum arg0, struct interval a
     struct interval resinterval;
     resinterval.min = 0.0;
     resinterval.max = FMAX(-a0interval.min, a0interval.max);
-    return opt_default1(func_abs, opt, resinterval, arg0);
+    return opt_default1(sourceindex, func_abs, opt, resinterval, arg0);
 }
 
-opnum opt_sqrt(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
+opnum opt_sqrt(opnum sourceindex, struct optimizer* opt, opnum arg0, struct interval a0interval) {
     struct interval resinterval;
     if (a0interval.min < 0) {
         resinterval.max = NAN;
@@ -369,10 +377,10 @@ opnum opt_sqrt(struct op op, struct optimizer* opt, opnum arg0, struct interval 
         resinterval.min = sqrtf(a0interval.min);
         resinterval.max = sqrtf(a0interval.max);
     }
-    return opt_default1(func_sqrt, opt, resinterval, arg0);
+    return opt_default1(sourceindex, func_sqrt, opt, resinterval, arg0);
 }
 
-opnum opt_square(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
+opnum opt_square(opnum sourceindex, struct optimizer* opt, opnum arg0, struct interval a0interval) {
     struct interval resinterval;
     if (a0interval.min >= 0) {
         resinterval.min = a0interval.min * a0interval.min;
@@ -388,33 +396,33 @@ opnum opt_square(struct op op, struct optimizer* opt, opnum arg0, struct interva
     struct op arg0op = opt->resultops[arg0];
     if (arg0op.f == func_neg) {
         // remove the neg
-        return opt_default1(func_square, opt, resinterval, arg0op.unary.a0);
+        return opt_default1(sourceindex, func_square, opt, resinterval, arg0op.unary.a0);
     }
-    return opt_default1(func_square, opt, resinterval, arg0);
+    return opt_default1(sourceindex, func_square, opt, resinterval, arg0);
 }
 
-opnum opt_min(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_min(opnum sourceindex, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (a0interval.max < a1interval.min) {
-        return arg0;
+        return opt_remove(sourceindex, arg0, opt);
     }
     if (a1interval.max < a0interval.min) {
-        return arg1;
+        return opt_remove(sourceindex, arg1, opt);
     }
     //if (arg0 == arg1) {
-    //    return arg0;
+    //    return opt_remove(sourceindex, arg0, opt);
     //}
     //struct op arg0op = opt->resultops[arg0];
     //if (arg0op.f == func_min) {
     //    // min(min(a, b), a) = min(a, b)
     //    if (arg0op.binary.a0 == arg1 && arg0op.binary.a1 == arg1) {
-    //        return arg0;
+    //        return opt_remove(sourceindex, arg0, opt);
     //    }
     //}
     //struct op arg1op = opt->resultops[arg1];
     //if (arg1op.f == func_min) {
     //    // min(a, min(a, b)) = min(a, b)
     //    if (arg1op.binary.a0 == arg1 && arg1op.binary.a1 == arg1) {
-    //        return arg1;
+    //        return opt_remove(sourceindex, arg1, opt);
     //    }
     //}
     struct interval resinterval;
@@ -424,31 +432,31 @@ opnum opt_min(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struc
         resinterval.min = NAN;
         resinterval.max = NAN;
     }
-    return opt_default2(func_min, opt, resinterval, arg0, arg1);
+    return opt_default2(sourceindex, func_min, opt, resinterval, arg0, arg1);
 }
 
-opnum opt_max(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_max(opnum sourceindex, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (a0interval.min > a1interval.max) {
-        return arg0;
+        return opt_remove(sourceindex, arg0, opt);
     }
     if (a1interval.min > a0interval.max) {
-        return arg1;
+        return opt_remove(sourceindex, arg1, opt);
     }
     //if (arg0 == arg1) {
-    //    return arg0;
+    //    return opt_remove(sourceindex, arg0, opt);
     //}
     //struct op arg0op = opt->resultops[arg0];
     //if (arg0op.f == func_max) {
     //    // max(max(a, b), a) = max(a, b)
     //    if (arg0op.binary.a0 == arg1 && arg0op.binary.a1 == arg1) {
-    //        return arg0;
+    //        return opt_remove(sourceindex, arg0, opt);
     //    }
     //}
     //struct op arg1op = opt->resultops[arg1];
     //if (arg1op.f == func_max) {
     //    // max(a, max(a, b)) = max(a, b)
     //    if (arg1op.binary.a0 == arg1 && arg1op.binary.a1 == arg1) {
-    //        return arg1;
+    //        return opt_remove(sourceindex, arg1, opt);
     //    }
     //}
     struct interval resinterval;
@@ -458,142 +466,143 @@ opnum opt_max(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struc
         resinterval.min = NAN;
         resinterval.max = NAN;
     }
-    return opt_default2(func_max, opt, resinterval, arg0, arg1);
+    return opt_default2(sourceindex, func_max, opt, resinterval, arg0, arg1);
 }
 
-opnum opt_mul(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_mul(opnum sourceindex, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (a0interval.min == a0interval.max) {
         if (a0interval.min == 0) {
-            return opt_newconst(opt, 0);
+            return opt_newconst(sourceindex, opt, 0);
         }
         if (a0interval.min == 1) {
-            return arg1;
+            return opt_remove(sourceindex, arg1, opt);
         }
         if (a0interval.min == -1) {
-            return opt_neg(op, opt, arg1, a1interval);
+            return opt_neg(sourceindex, opt, arg1, a1interval);
         }
     }
     if (a1interval.min == a1interval.max) {
         if (a1interval.min == 0) {
-            return opt_newconst(opt, 0);
+            return opt_newconst(sourceindex, opt, 0);
         }
         if (a1interval.min == 1) {
-            return arg0;
+            return opt_remove(sourceindex, arg0, opt);
         }
         if (a1interval.min == -1) {
-            return opt_neg(op, opt, arg0, a0interval);
+            return opt_neg(sourceindex, opt, arg0, a0interval);
         }
     }
     struct interval resinterval;
     resinterval.min = FMIN(FMIN(a0interval.min * a1interval.min, a0interval.min * a1interval.max), FMIN(a0interval.max * a1interval.min, a0interval.max * a1interval.max));
     resinterval.max = FMAX(FMAX(a0interval.min * a1interval.min, a0interval.min * a1interval.max), FMAX(a0interval.max * a1interval.min, a0interval.max * a1interval.max));
-    return opt_default2(func_mul, opt, resinterval, arg0, arg1);
+    return opt_default2(sourceindex, func_mul, opt, resinterval, arg0, arg1);
 }
 
-opnum opt_sub(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_sub(opnum sourceindex, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (arg0 == arg1) {
-        return opt_newconst(opt, 0);
+        return opt_newconst(sourceindex, opt, 0);
     }
     if (a0interval.min == a0interval.max) {
         if (a0interval.min == 0) {
-            return opt_neg(op, opt, arg1, a1interval);
+            return opt_neg(sourceindex, opt, arg1, a1interval);
         }
     }
     if (a1interval.min == a1interval.max) {
         if (a1interval.min == 0) {
-            return arg0;
+            return opt_remove(sourceindex, arg0, opt);
         }
     }
     struct interval resinterval;
     resinterval.min = a0interval.min - a1interval.max;
     resinterval.max = a0interval.max - a1interval.min;
-    return opt_default2(func_sub, opt, resinterval, arg0, arg1);
+    return opt_default2(sourceindex, func_sub, opt, resinterval, arg0, arg1);
 }
 
-opnum opt_add(struct op op, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
+opnum opt_add(opnum sourceindex, struct optimizer* opt, opnum arg0, opnum arg1, struct interval a0interval, struct interval a1interval) {
     if (a0interval.min == a0interval.max) {
         if (a0interval.min == 0) {
-            return arg1;
+            return opt_remove(sourceindex, arg1, opt);
         }
     }
     if (a1interval.min == a1interval.max) {
         if (a1interval.min == 0) {
-            return arg0;
+            return opt_remove(sourceindex, arg0, opt);
         }
     }
     struct interval resinterval;
     resinterval.min = a0interval.min + a1interval.min;
     resinterval.max = a0interval.max + a1interval.max;
-    return opt_default2(func_add, opt, resinterval, arg0, arg1);
+    return opt_default2(sourceindex, func_add, opt, resinterval, arg0, arg1);
 }
 
-opnum opt_done(struct op op, struct optimizer* opt, opnum arg0, struct interval a0interval) {
-    return opt_default1(func_done, opt, a0interval, arg0);
+opnum opt_done(opnum sourceindex, struct optimizer* opt, opnum arg0, struct interval a0interval) {
+    return opt_default1(sourceindex, func_done, opt, a0interval, arg0);
 }
 
-opnum opt_op(struct op op, struct optimizer* opt) {
+opnum opt_op(opnum sourceindex, struct optimizer* opt) {
     opnum a0, a1;
     struct interval a0interval;
     struct interval a1interval;
+    struct op op = opt->ops[sourceindex];
     switch(op.f) {
         case func_varx:
-            return opt_varx(op, opt);
+            return opt_varx(sourceindex, opt);
         case func_vary:
-            return opt_vary(op, opt);
+            return opt_vary(sourceindex, opt);
         case func_varz:
-            return opt_varz(op, opt);
+            return opt_varz(sourceindex, opt);
         case func_const:
-            return opt_const(op, opt);
+            return opt_const(sourceindex, opt, op.constant);
         case func_abs:
             a0 = opt->opreplacements[op.unary.a0];
             a0interval = opt->intervals[a0];
-            return opt_abs(op, opt, a0, a0interval);
+            return opt_abs(sourceindex, opt, a0, a0interval);
         case func_sqrt:
             a0 = opt->opreplacements[op.unary.a0];
             a0interval = opt->intervals[a0];
-            return opt_sqrt(op, opt, a0, a0interval);
+            return opt_sqrt(sourceindex, opt, a0, a0interval);
         case func_square:
             a0 = opt->opreplacements[op.unary.a0];
             a0interval = opt->intervals[a0];
-            return opt_square(op, opt, a0, a0interval);
+            return opt_square(sourceindex, opt, a0, a0interval);
         case func_neg:
             a0 = opt->opreplacements[op.unary.a0];
             a0interval = opt->intervals[a0];
-            return opt_neg(op, opt, a0, a0interval);
+            return opt_neg(sourceindex, opt, a0, a0interval);
         case func_add:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
             a0interval = opt->intervals[a0];
             a1interval = opt->intervals[a1];
-            return opt_add(op, opt, a0, a1, a0interval, a1interval);
+            return opt_add(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_sub:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
             a0interval = opt->intervals[a0];
             a1interval = opt->intervals[a1];
-            return opt_sub(op, opt, a0, a1, a0interval, a1interval);
+            return opt_sub(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_mul:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
             a0interval = opt->intervals[a0];
             a1interval = opt->intervals[a1];
-            return opt_mul(op, opt, a0, a1, a0interval, a1interval);
+            return opt_mul(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_min:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
             a0interval = opt->intervals[a0];
             a1interval = opt->intervals[a1];
-            return opt_min(op, opt, a0, a1, a0interval, a1interval);
+            return opt_min(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_max:
             a0 = opt->opreplacements[op.binary.a0];
             a1 = opt->opreplacements[op.binary.a1];
             a0interval = opt->intervals[a0];
             a1interval = opt->intervals[a1];
-            return opt_max(op, opt, a0, a1, a0interval, a1interval);
+            return opt_max(sourceindex, opt, a0, a1, a0interval, a1interval);
         case func_done:
             a0 = opt->opreplacements[op.unary.a0];
             a0interval = opt->intervals[a0];
-            return opt_done(op, opt, a0, a0interval);
+            return opt_done(sourceindex, opt, a0, a0interval);
         default:
             fprintf(stderr, "Error: unknown operator %d\n", op.f);
             exit(1);
@@ -751,10 +760,8 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
     // optimize the ops
     int i = 0;
     for (i = 0; i < 65536; i++) {
-        struct op op = ops[i];
-        opnum newopindex = opt_op(op, opt);
-        opt->opreplacements[i] = newopindex;
-        if (op.f == func_done) {
+        opt_op(i, opt);
+        if (ops[i].f == func_done) {
             break;
         }
     }
@@ -765,7 +772,7 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
     res.ops = NULL;
     if (res.min > 0.0 || res.max <= 0.0) {
 #ifdef PYFIDGETFUZZING
-    printf("optimize constant sign %f %f %f %f: minres %f maxres %f\n", minx, maxx, miny, maxy, res.min, res.max);
+        printf("optimize constant sign %f %f %f %f: minres %f maxres %f\n", minx, maxx, miny, maxy, res.min, res.max);
 #endif
         destroy_optimizer(opt);
         return res;
@@ -779,6 +786,10 @@ struct optresult optimize(struct op* ops, FLOAT minx, FLOAT maxx, FLOAT miny, FL
     }
     opt_dead_code_elimination(opt, last_op);
     res.ops = opt->resultops;
+#ifdef PYFIDGETFUZZING
+    printf("optimized ops:\n");
+    print_ops(res.ops);
+#endif
     opt->resultops = NULL;
     destroy_optimizer(opt);
     return res;
