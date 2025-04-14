@@ -67,6 +67,7 @@ def random_programs(draw):
 
 @settings(deadline=None)
 @given(random_programs(), strategies.sampled_from([8, 16, 32, 64, 128, 256, 512, 1024]))
+@example('_0 const 512.000001\n_1 square _0\n_2 square _0\n_3 var-x\n_4 var-x\n_5 var-x\n_6 var-x\n_7 var-x\n_8 square _0\n_9 square _0\n_a var-x\n_b square _0\n_c var-x\n_d var-x\n_e var-x\n_f var-x\n_10 square _0\n_11 var-x\n_12 var-x\n_13 var-x\n_14 var-x\n_15 var-x\n_16 var-x\n_17 var-x\n_18 var-x\n_19 var-x\n_1a var-x\n_1b var-x\n_1c square _0\n_1d var-x\n_1e var-x\n_1f var-x\n_20 var-x\n_21 var-x\n_22 var-y\n_23 mul _22 _1\n_24 sub _23 _1\n_25 mul _24 _1\n_26 sub _24 _25', 8)
 @example('_0 var-x\n_1 var-x\n_2 square _0\n_3 square _0\n_4 var-x\n_5 square _0\n_6 var-x\n_7 var-x\n_8 square _0\n_9 var-x\n_a var-x\n_b square _0\n_c square _0\n_d var-x\n_e var-x\n_f var-x\n_10 neg _0\n_11 neg _10', 16)
 @example('_0 const 0.000000\n_1 var-x\n_2 mul _1 _1\n_3 sqrt _2\n_4 add _3 _0\n_5 add _4 _0\n_6 max _5 _0', 16)
 @example('_0 var-x\n_1 add _0 _0\n_2 add _1 _0\n_3 add _2 _0\n_4 add _3 _0\n_5 add _4 _0\n_6 add _5 _0\n_7 add _6 _0\n_8 sub _0 _7\n_9 max _8 _0', 8)
@@ -133,6 +134,6 @@ def value_image_naive(frame, width, height, minx, maxx, miny, maxy):
             x = minx
             column_index = 0
             row_index += 1
-            y += dy
+            y = miny + dy * row_index
             if row_index >= height:
                 break
